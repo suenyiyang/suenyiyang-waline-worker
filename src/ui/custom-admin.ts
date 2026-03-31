@@ -116,19 +116,12 @@ select{height:32px;min-width:200px}
 <div class="typecho-head-nav">
   <div class="inner">
     <div class="nav-links">
-      <a href="/ui" class="nav-sep">管理</a>
-      <a href="/ui" class="nav-sep">评论</a>
-      <a href="/ui/worker-setting" class="focus nav-sep">Worker</a>
+      <span style="color:#fff;font-size:13px;padding:0 20px">Waline On Worker 设置</span>
     </div>
     <div class="operate">
-      <a href="/">← 返回首页</a>
+      <a href="/ui">← 返回管理面板</a>
     </div>
   </div>
-</div>
-
-<!-- Title -->
-<div class="typecho-page-title">
-  <h2>Worker 设置</h2>
 </div>
 
 <!-- Content -->
@@ -137,7 +130,6 @@ select{height:32px;min-width:200px}
   <ul class="typecho-option-tabs" id="tabs">
     <li class="active"><a href="#" data-tab="frontend">前端版本</a></li>
     <li><a href="#" data-tab="comment">评论策略</a></li>
-    <li><a href="#" data-tab="llm">LLM 审查</a></li>
   </ul>
 
   <!-- Tab: Frontend Version -->
@@ -165,25 +157,40 @@ select{height:32px;min-width:200px}
     </div>
   </div>
 
-  <!-- Tab: Comment Policy -->
+  <!-- Tab: Comment Policy + LLM Review -->
   <div class="typecho-table-wrap tab-panel" id="tab-comment" style="display:none">
+    <h4 style="margin:0 0 16px;font-size:14px;color:#444;border-bottom:1px solid #eee;padding-bottom:8px">默认状态</h4>
     <div class="typecho-option">
       <label class="typecho-label">匿名评论默认状态</label>
       <select id="set-comment-status">
         <option value="approved">直接通过 (approved)</option>
         <option value="waiting">等待审核 (waiting)</option>
       </select>
-      <p class="description">未登录用户发表评论的默认状态。已登录用户的评论始终直接通过。此设置优先于环境变量 AUDIT。</p>
+      <p class="description">未登录用户发表评论的默认状态。此设置优先于环境变量 AUDIT。</p>
     </div>
-  </div>
-
-  <!-- Tab: LLM Review -->
-  <div class="typecho-table-wrap tab-panel" id="tab-llm" style="display:none">
     <div class="typecho-option">
-      <label class="typecho-label">启用 LLM 审查</label>
+      <label class="typecho-label">用户评论默认状态</label>
+      <select id="set-user-comment-status">
+        <option value="approved">直接通过 (approved)</option>
+        <option value="waiting">等待审核 (waiting)</option>
+      </select>
+      <p class="description">已登录用户发表评论的默认状态。</p>
+    </div>
+    <h4 style="margin:24px 0 16px;font-size:14px;color:#444;border-bottom:1px solid #eee;padding-bottom:8px">LLM 审查</h4>
+    <div class="typecho-option">
+      <label class="typecho-label">LLM 审查模式</label>
+      <select id="set-llm-mode">
+        <option value="off">关闭</option>
+        <option value="anonymous">仅对匿名评论启用</option>
+        <option value="all" selected>全部评论 (默认)</option>
+      </select>
+      <p class="description">选择 LLM 自动审查的适用范围。「关闭」不进行审查；「仅匿名」仅审查未登录用户的评论；「全部」审查所有评论。</p>
+    </div>
+    <div class="typecho-option">
+      <label class="typecho-label">管理员跳过审查</label>
       <div class="toggle-row">
-        <label class="toggle"><input type="checkbox" id="set-llm-on" /><span class="toggle-slider"></span></label>
-        <span class="toggle-label">对匿名评论使用 LLM 进行自动审查</span>
+        <label class="toggle"><input type="checkbox" id="set-llm-skip-admin" checked /><span class="toggle-slider"></span></label>
+        <span class="toggle-label">管理员发表的评论跳过 LLM 审查（默认开启）</span>
       </div>
     </div>
     <div class="typecho-option">
@@ -203,12 +210,15 @@ select{height:32px;min-width:200px}
       <label class="typecho-label">System Prompt</label>
       <textarea id="set-llm-prompt" rows="6" placeholder="You are a review bot. Output a single word: approved or spam."></textarea>
     </div>
+    <p class="description" style="margin-top:10px;color:#888">LLM 调用失败时，将遵循对应的评论默认状态设置（匿名/用户）。</p>
+    <div style="margin-top:16px">
+      <button class="btn" id="test-btn">测试 LLM 连接</button>
+    </div>
   </div>
 
   <!-- Actions -->
   <div class="actions">
     <button class="btn primary" id="save-btn">保存设置</button>
-    <button class="btn" id="test-btn">测试 LLM</button>
   </div>
 </div>
 
@@ -283,8 +293,12 @@ select{height:32px;min-width:200px}
     var s = sr.data || {};
     document.getElementById('set-version').value = s.waline_client_version || 'v3';
     document.getElementById('set-comment-status').value = s.comment_default_status || 'approved';
+    document.getElementById('set-user-comment-status').value = s.user_comment_default_status || 'approved';
     document.getElementById('set-worker-display').value = s.worker_display || 'admin';
-    document.getElementById('set-llm-on').checked = s.llm_enabled === '1';
+    // llm_mode: migrate from old llm_enabled if present
+    var mode = s.llm_mode || (s.llm_enabled === '1' ? 'anonymous' : 'off');
+    document.getElementById('set-llm-mode').value = mode;
+    document.getElementById('set-llm-skip-admin').checked = s.llm_skip_admin !== '0';
     document.getElementById('set-llm-ep').value = s.llm_endpoint || '';
     document.getElementById('set-llm-key').value = s.llm_api_key || '';
     document.getElementById('set-llm-model').value = s.llm_model || 'gpt-4o-mini';
@@ -306,8 +320,10 @@ select{height:32px;min-width:200px}
     var settings = {
       waline_client_version: document.getElementById('set-version').value.trim() || 'v3',
       comment_default_status: document.getElementById('set-comment-status').value,
+      user_comment_default_status: document.getElementById('set-user-comment-status').value,
       worker_display: document.getElementById('set-worker-display').value,
-      llm_enabled: document.getElementById('set-llm-on').checked ? '1' : '0',
+      llm_mode: document.getElementById('set-llm-mode').value,
+      llm_skip_admin: document.getElementById('set-llm-skip-admin').checked ? '1' : '0',
       llm_endpoint: document.getElementById('set-llm-ep').value.trim(),
       llm_api_key: document.getElementById('set-llm-key').value.trim(),
       llm_model: document.getElementById('set-llm-model').value.trim(),

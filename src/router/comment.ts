@@ -53,12 +53,13 @@ commentRoutes.post('/', async (c) => {
   const userInfo = c.get('userInfo');
 
   // Determine initial status:
-  // - Admin/logged-in users: always approved
-  // - comment_default_status setting takes priority for anonymous users
+  // - comment_default_status setting: anonymous users
+  // - user_comment_default_status setting: logged-in users
   // - Fallback: AUDIT env var, then approved
   let status: string;
   if (userInfo) {
-    status = 'approved';
+    const userDefault = await getSetting(c.env.DB, 'user_comment_default_status').catch(() => null);
+    status = (userDefault === 'waiting') ? 'waiting' : 'approved';
   } else {
     const defaultStatus = await getSetting(c.env.DB, 'comment_default_status').catch(() => null);
     if (defaultStatus === 'waiting' || defaultStatus === 'approved') {
@@ -101,19 +102,27 @@ commentRoutes.post('/', async (c) => {
     'SELECT * FROM wl_Comment WHERE id = last_insert_rowid()',
   ).first();
 
-  // Async LLM review (non-blocking, runs after response)
-  if (!userInfo && newComment) {
+  // Async LLM review based on llm_mode and llm_skip_admin settings
+  if (newComment) {
     const commentId = (newComment as any).id;
     const db = c.env.DB;
     c.executionCtx.waitUntil(
-      reviewComment(db, comment, nick || '', url).then(async (newStatus) => {
-        if (!newStatus) return;
-        // Only update if not already manually changed by admin
+      (async () => {
+        const llmMode = await getSetting(db, 'llm_mode').catch(() => null) || 'off';
+        if (llmMode === 'off') return;
+        if (llmMode === 'anonymous' && userInfo) return;
+        // llmMode === 'all': review everyone, but check skip_admin
+        if (userInfo?.type === 'administrator') {
+          const skip = await getSetting(db, 'llm_skip_admin').catch(() => null);
+          if (skip !== '0') return; // default: skip admin
+        }
+        const newStatus = await reviewComment(db, comment, nick || '', url, status);
+        if (newStatus === status) return;
         await db.prepare(
           `UPDATE wl_Comment SET status = ?, updatedAt = datetime('now')
            WHERE id = ? AND status = ?`,
         ).bind(newStatus, commentId, status).run();
-      }).catch(() => { /* LLM review failure is non-critical */ }),
+      })().catch(() => { /* LLM review failure is non-critical */ }),
     );
   }
 

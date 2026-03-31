@@ -2,21 +2,21 @@ import { getSettings } from '../router/settings.js';
 
 /**
  * Review a comment using an OpenAI-compatible LLM endpoint.
- * Returns 'approved', 'spam', or 'waiting'. Returns null if disabled or fails.
- * Based on waline-plugin-llm-reviewer pattern.
+ * Returns 'approved' or 'spam' on success, or the provided defaultStatus on failure/disabled.
+ * llm_mode: 'off' | 'anonymous' | 'all' (controls when LLM review runs; caller decides whether to call)
  */
 export async function reviewComment(
   db: D1Database,
   commentText: string,
   nick: string,
   url: string,
-): Promise<string | null> {
+  defaultStatus: string,
+): Promise<string> {
   const settings = await getSettings(db, [
-    'llm_enabled', 'llm_endpoint', 'llm_api_key', 'llm_model', 'llm_prompt',
+    'llm_endpoint', 'llm_api_key', 'llm_model', 'llm_prompt',
   ]);
 
-  if (settings.llm_enabled !== '1') return null;
-  if (!settings.llm_endpoint || !settings.llm_api_key) return null;
+  if (!settings.llm_endpoint || !settings.llm_api_key) return defaultStatus;
 
   const systemPrompt = settings.llm_prompt ||
     'You are a review bot. Your task is to review the comments according to following rules: ' +
@@ -41,15 +41,15 @@ export async function reviewComment(
       }),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) return defaultStatus;
 
     const data = await response.json() as any;
     const content = data?.choices?.[0]?.message?.content?.trim()?.toLowerCase();
-    if (!content) return null;
+    if (!content) return defaultStatus;
 
     if (content === 'approved' || content === 'spam') return content;
     return 'waiting';
   } catch {
-    return null;
+    return defaultStatus;
   }
 }

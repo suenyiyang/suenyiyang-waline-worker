@@ -26,7 +26,7 @@ export async function getAdminPage(env: Env, requestUrl: string): Promise<string
   <meta charset="utf-8">
   <title>Waline Management System</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-${showWorker ? `  <style>.wk-badge{display:inline-block;margin-left:12px;padding:1px 8px;background:#f97316;color:#fff;font-size:11px;border-radius:10px;vertical-align:middle;font-weight:normal;letter-spacing:.5px;line-height:18px}</style>` : ''}
+${showWorker ? `  <style>.wk-badge{display:inline-block;margin-right:8px;padding:1px 8px;background:#f97316;color:#fff;font-size:11px;border-radius:10px;vertical-align:middle;font-weight:normal;letter-spacing:.5px;line-height:18px}</style>` : ''}
 </head>
 <body>
   <script>

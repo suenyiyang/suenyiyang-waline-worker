@@ -8,6 +8,7 @@ import { userRoutes } from './router/user.js';
 import { tokenRoutes } from './router/token.js';
 import { settingsRoutes } from './router/settings.js';
 import { oauthRoutes } from './router/oauth.js';
+import { dbRoutes } from './router/db.js';
 import { getWalinePage } from './ui/waline-page.js';
 import { getAdminPage } from './ui/admin-panel.js';
 import { getCustomSettingsPage, get404Page } from './ui/custom-admin.js';
@@ -29,10 +30,16 @@ app.use(
     },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
-    exposeHeaders: ['Content-Length'],
+    exposeHeaders: ['Content-Length', 'x-waline-version'],
     credentials: true,
   }),
 );
+
+// Waline version header (used by admin panel for export __version field)
+app.use('*', async (c, next) => {
+  await next();
+  c.header('x-waline-version', '1.0.0');
+});
 
 // Auth middleware - parse JWT on all routes (non-blocking, skips if no token)
 app.use('*', auth);
@@ -44,6 +51,7 @@ app.route('/api/user', userRoutes);
 app.route('/api/token', tokenRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/oauth', oauthRoutes);
+app.route('/api/db', dbRoutes);
 
 // Worker custom settings page (server-side auth-gated)
 app.get('/ui/worker-setting', async (c) => {

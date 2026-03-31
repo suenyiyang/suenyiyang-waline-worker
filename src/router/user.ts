@@ -18,6 +18,18 @@ userRoutes.get('/', async (c) => {
   const userInfo = c.get('userInfo');
   const isAdmin = userInfo?.type === 'administrator';
 
+  // Admin: lookup user by email (used by import flow)
+  const emailQuery = c.req.query('email');
+  if (isAdmin && emailQuery) {
+    const user = await c.env.DB.prepare(
+      'SELECT id, display_name, email, type FROM wl_Users WHERE email = ?',
+    ).bind(emailQuery).first();
+    if (user) {
+      return c.json({ errno: 0, objectId: String((user as any).id), ...(user as any) });
+    }
+    return c.json({ errno: 0 });
+  }
+
   if (isAdmin) {
     const page = Math.max(1, parseInt(c.req.query('page') || '1'));
     const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '10')));
