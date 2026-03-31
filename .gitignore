@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Wrangler
+.wrangler/
+
+# Build
+dist/
+
+# Environment
+.dev.vars
+
+# Logs
+*.log

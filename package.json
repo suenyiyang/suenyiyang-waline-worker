@@ -1,0 +1,27 @@
+{
+  "name": "waline-on-worker",
+  "version": "0.1.0",
+  "description": "Waline-compatible comment system backend running on Cloudflare Workers with D1",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute waline-db --file=./schema.sql",
+    "db:init:local": "wrangler d1 execute waline-db --file=./schema.sql --local"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wuyilingwei/Waline_On_Worker.git"
+  },
+  "keywords": ["waline", "cloudflare-workers", "comment-system", "d1"],
+  "author": "wuyilingwei",
+  "license": "MIT",
+  "dependencies": {
+    "hono": "^4.12.9"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260329.1",
+    "typescript": "^6.0.2",
+    "wrangler": "^4.78.0"
+  }
+}
