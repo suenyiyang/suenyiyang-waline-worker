@@ -44,6 +44,15 @@ app.use('*', async (c, next) => {
 // Auth middleware - parse JWT on all routes (non-blocking, skips if no token)
 app.use('*', auth);
 
+// Global error handler (catches malformed JSON bodies, etc.)
+app.onError((err, c) => {
+  if (err instanceof SyntaxError) {
+    return c.json({ errno: 1, errmsg: 'Invalid JSON body' }, 400);
+  }
+  console.error('[Unhandled Error]', err?.message || err);
+  return c.json({ errno: 1, errmsg: 'Internal Server Error' }, 500);
+});
+
 // Routes
 app.route('/api/comment', commentRoutes);
 app.route('/api/article', articleRoutes);

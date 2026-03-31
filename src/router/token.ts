@@ -4,6 +4,7 @@ import { verifyPassword } from '../utils/password.js';
 import { signJwt } from '../middleware/auth.js';
 import { getAvatar } from '../utils/avatar.js';
 import { generateSecret, verifyTotp } from '../utils/totp.js';
+import { md5 } from '../utils/hash.js';
 
 export const tokenRoutes = new Hono<{
   Bindings: Env;
@@ -60,16 +61,16 @@ tokenRoutes.post('/', async (c) => {
     .first();
 
   if (!user) {
-    return c.json({ errno: 1, errmsg: 'User not found' }, 404);
+    return c.json({ errno: 1, errmsg: 'Invalid credentials' }, 401);
   }
 
   if ((user.type as string) === 'banned') {
-    return c.json({ errno: 1, errmsg: 'Account is banned' }, 403);
+    return c.json({ errno: 1, errmsg: 'Invalid credentials' }, 401);
   }
 
   const valid = await verifyPassword(password, user.password as string);
   if (!valid) {
-    return c.json({ errno: 1, errmsg: 'Invalid password' }, 401);
+    return c.json({ errno: 1, errmsg: 'Invalid credentials' }, 401);
   }
 
   // Check 2FA
@@ -188,10 +189,4 @@ tokenRoutes.post('/2fa', async (c) => {
   return c.json({ errno: 0, errmsg: '' });
 });
 
-async function md5(text: string): Promise<string> {
-  const data = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest('MD5', data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
+

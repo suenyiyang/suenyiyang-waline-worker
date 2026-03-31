@@ -122,7 +122,7 @@ commentRoutes.post('/', async (c) => {
           `UPDATE wl_Comment SET status = ?, updatedAt = datetime('now')
            WHERE id = ? AND status = ?`,
         ).bind(newStatus, commentId, status).run();
-      })().catch(() => { /* LLM review failure is non-critical */ }),
+      })().catch((err) => console.error('[LLM Review Error]', err?.message || err)),
     );
   }
 
@@ -393,8 +393,8 @@ async function getCommentList(c: any) {
     return c.json({ errno: 1, errmsg: 'path is required' }, 400);
   }
 
-  const page = Math.max(1, parseInt(c.req.query('page') || '1'));
-  const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '10')));
+  const page = Math.max(1, parseInt(c.req.query('page') || '1') || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '10') || 10));
   const sortBy = c.req.query('sortBy') || 'insertedAt_desc';
 
   const orderMap: Record<string, string> = {
@@ -464,7 +464,7 @@ async function getCommentList(c: any) {
 }
 
 async function getRecentComments(c: any) {
-  const count = Math.min(50, Math.max(1, parseInt(c.req.query('count') || '10')));
+  const count = Math.min(50, Math.max(1, parseInt(c.req.query('count') || '10') || 10));
 
   const result = await c.env.DB.prepare(
     `SELECT * FROM wl_Comment WHERE status = 'approved'
@@ -524,8 +524,8 @@ async function getAdminCommentList(c: any) {
     return c.json({ errno: 1, errmsg: 'Unauthorized' }, 403);
   }
 
-  const page = Math.max(1, parseInt(c.req.query('page') || '1'));
-  const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '10')));
+  const page = Math.max(1, parseInt(c.req.query('page') || '1') || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '10') || 10));
   const status = c.req.query('status') || '';
   const keyword = c.req.query('keyword') || '';
   const offset = (page - 1) * pageSize;
@@ -538,8 +538,9 @@ async function getAdminCommentList(c: any) {
     params.push(status);
   }
   if (keyword) {
-    where += ' AND comment LIKE ?';
-    params.push(`%${keyword}%`);
+    const escaped = keyword.replace(/[%_\\]/g, '\\$&');
+    where += " AND comment LIKE ? ESCAPE '\\'";
+    params.push(`%${escaped}%`);
   }
 
   const countResult = await c.env.DB.prepare(

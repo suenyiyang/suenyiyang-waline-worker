@@ -19,7 +19,7 @@ oauthRoutes.get('/', async (c) => {
   const type = c.req.query('type');
   const code = c.req.query('code');
   const state = c.req.query('state') || '';
-  const redirect = c.req.query('redirect') || '/ui';
+  const redirect = sanitizeRedirect(c.req.query('redirect'));
   const oauthUrl = c.env.OAUTH_URL || DEFAULT_OAUTH_URL;
 
   if (!type) {
@@ -137,6 +137,12 @@ oauthRoutes.get('/', async (c) => {
     return c.redirect(`${redirect}?error=oauth_error`);
   }
 });
+
+/** Ensure redirect is a safe relative path (prevent open redirect attacks) */
+function sanitizeRedirect(input: string | undefined): string {
+  if (!input || !input.startsWith('/') || input.startsWith('//')) return '/ui';
+  return input;
+}
 
 function getSocialField(type: string): string | null {
   const map: Record<string, string> = {

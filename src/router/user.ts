@@ -31,8 +31,8 @@ userRoutes.get('/', async (c) => {
   }
 
   if (isAdmin) {
-    const page = Math.max(1, parseInt(c.req.query('page') || '1'));
-    const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '10')));
+    const page = Math.max(1, parseInt(c.req.query('page') || '1') || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query('pageSize') || '10') || 10));
     const offset = (page - 1) * pageSize;
 
     const countResult = await c.env.DB.prepare(
@@ -59,7 +59,7 @@ userRoutes.get('/', async (c) => {
   }
 
   // Public: top commenters
-  const count = Math.min(50, Math.max(1, parseInt(c.req.query('count') || '10')));
+  const count = Math.min(50, Math.max(1, parseInt(c.req.query('count') || '10') || 10));
   const result = await c.env.DB.prepare(
     `SELECT u.id, u.display_name, u.url, u.avatar, u.label,
             COUNT(c.id) as comment_count
@@ -105,7 +105,7 @@ userRoutes.post('/', async (c) => {
     .first();
 
   if (existing) {
-    return c.json({ errno: 1, errmsg: 'Email already registered' }, 409);
+    return c.json({ errno: 1, errmsg: 'Registration failed' }, 409);
   }
 
   // Check if first user (becomes admin)
