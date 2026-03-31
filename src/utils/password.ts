@@ -1,7 +1,10 @@
 /**
  * Password hashing using Web Crypto API (PBKDF2)
  * Workers-compatible alternative to phpass/bcrypt
+ * Also supports verifying bcrypt hashes from LeanCloud migration
  */
+
+import bcrypt from 'bcryptjs';
 
 const ITERATIONS = 100000;
 const SALT_LENGTH = 16;
@@ -22,9 +25,13 @@ export async function verifyPassword(
   password: string,
   stored: string,
 ): Promise<boolean> {
+  // Support bcrypt format from LeanCloud migration
+  if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
+    return bcrypt.compareSync(password, stored);
+  }
+
   // Support phpass format from migrated data
   if (stored.startsWith('$P$') || stored.startsWith('$H$')) {
-    // TODO: Implement phpass verification for migrated data
     return false;
   }
 

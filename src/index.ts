@@ -6,6 +6,10 @@ import { commentRoutes } from './router/comment.js';
 import { articleRoutes } from './router/article.js';
 import { userRoutes } from './router/user.js';
 import { tokenRoutes } from './router/token.js';
+import { settingsRoutes } from './router/settings.js';
+import { oauthRoutes } from './router/oauth.js';
+import { getWalinePage } from './ui/waline-page.js';
+import { getAdminPage } from './ui/admin-panel.js';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -37,13 +41,21 @@ app.route('/api/comment', commentRoutes);
 app.route('/api/article', articleRoutes);
 app.route('/api/user', userRoutes);
 app.route('/api/token', tokenRoutes);
+app.route('/api/settings', settingsRoutes);
+app.route('/api/oauth', oauthRoutes);
 
-// Health check / root
-app.get('/', (c) => {
-  return c.json({
-    name: 'Waline on Worker',
-    version: '0.1.0',
-  });
+// Admin panel UI
+app.get('/ui', (c) => {
+  return c.html(getAdminPage());
+});
+app.get('/ui/*', (c) => {
+  return c.html(getAdminPage());
+});
+
+// Waline frontend UI (root page)
+app.get('/', async (c) => {
+  const html = await getWalinePage(c.env, c.req.url);
+  return c.html(html);
 });
 
 export default app;

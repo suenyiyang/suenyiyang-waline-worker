@@ -3,6 +3,7 @@ import type { Env, Variables } from '../env.js';
 import { getAvatar } from '../utils/avatar.js';
 import { parseUA } from '../utils/ua.js';
 import { renderMarkdown } from '../utils/markdown.js';
+import { reviewComment } from '../utils/llm-review.js';
 
 export const commentRoutes = new Hono<{
   Bindings: Env;
@@ -50,8 +51,17 @@ commentRoutes.post('/', async (c) => {
   const ip = c.req.header('CF-Connecting-IP') || '';
   const userInfo = c.get('userInfo');
 
-  const status =
-    c.env.AUDIT && !userInfo ? 'waiting' : 'approved';
+  // Determine initial status:
+  // - Admin/logged-in users: always approved
+  // - AUDIT mode or LLM review enabled: waiting (reviewed asynchronously)
+  let status: string;
+  if (userInfo) {
+    status = 'approved';
+  } else if (c.env.AUDIT) {
+    status = 'waiting';
+  } else {
+    status = 'approved';
+  }
 
   // Render markdown to HTML
   const renderedComment = renderMarkdown(comment);
@@ -84,6 +94,22 @@ commentRoutes.post('/', async (c) => {
     'SELECT * FROM wl_Comment WHERE id = last_insert_rowid()',
   ).first();
 
+  // Async LLM review (non-blocking, runs after response)
+  if (!userInfo && newComment) {
+    const commentId = (newComment as any).id;
+    const db = c.env.DB;
+    c.executionCtx.waitUntil(
+      reviewComment(db, comment, nick || '', url).then(async (newStatus) => {
+        if (!newStatus) return;
+        // Only update if not already manually changed by admin
+        await db.prepare(
+          `UPDATE wl_Comment SET status = ?, updatedAt = datetime('now')
+           WHERE id = ? AND status = ?`,
+        ).bind(newStatus, commentId, status).run();
+      }).catch(() => { /* LLM review failure is non-critical */ }),
+    );
+  }
+
   return c.json({
     errno: 0,
     errmsg: '',
@@ -100,8 +126,8 @@ commentRoutes.put('/:id', async (c) => {
   const body = await c.req.json();
   const isAdmin = userInfo?.type === 'administrator';
 
-  // Like action (anyone can like)
-  if (body.like !== undefined) {
+  // Like action (anyone can like - increment by 1)
+  if (body.like !== undefined && typeof body.like === 'boolean') {
     await c.env.DB.prepare(
       'UPDATE wl_Comment SET "like" = MAX(0, "like" + 1), updatedAt = datetime(\'now\') WHERE id = ?',
     )
@@ -150,6 +176,34 @@ commentRoutes.put('/:id', async (c) => {
   if (body.link !== undefined) {
     updates.push('link = ?');
     values.push(body.link);
+  }
+  if (body.url !== undefined) {
+    updates.push('url = ?');
+    values.push(body.url);
+  }
+  if (body.ua !== undefined) {
+    updates.push('ua = ?');
+    values.push(body.ua);
+  }
+  if (body.ip !== undefined) {
+    updates.push('ip = ?');
+    values.push(body.ip);
+  }
+  if (body.user_id !== undefined) {
+    updates.push('user_id = ?');
+    values.push(body.user_id);
+  }
+  if (body.pid !== undefined) {
+    updates.push('pid = ?');
+    values.push(body.pid);
+  }
+  if (body.rid !== undefined) {
+    updates.push('rid = ?');
+    values.push(body.rid);
+  }
+  if (typeof body.like === 'number') {
+    updates.push('"like" = ?');
+    values.push(Math.max(0, body.like));
   }
 
   if (updates.length === 0) {
@@ -290,33 +344,31 @@ async function getRecentComments(c: any) {
 }
 
 async function getCommentCount(c: any) {
-  const url = c.req.query('url');
-  if (!url) {
-    return c.json({ errno: 1, errmsg: 'url is required' }, 400);
+  const paths = c.req.queries('path') || c.req.queries('path[]') || [];
+  if (paths.length === 0) {
+    return c.json({ errno: 0, errmsg: '', data: 0 });
   }
 
-  // Support multiple URLs (comma-separated)
-  const urls = url.split(',');
-  if (urls.length === 1) {
+  if (paths.length === 1) {
     const result = await c.env.DB.prepare(
       "SELECT COUNT(*) as count FROM wl_Comment WHERE url = ? AND status = 'approved'",
     )
-      .bind(urls[0])
+      .bind(paths[0])
       .first();
     return c.json({
       errno: 0,
       errmsg: '',
-      data: (result?.count as number) || 0,
+      data: [(result?.count as number) || 0],
     });
   }
 
-  const placeholders = urls.map(() => '?').join(',');
+  const placeholders = paths.map(() => '?').join(',');
   const result = await c.env.DB.prepare(
     `SELECT url, COUNT(*) as count FROM wl_Comment
      WHERE url IN (${placeholders}) AND status = 'approved'
      GROUP BY url`,
   )
-    .bind(...urls)
+    .bind(...paths)
     .all();
 
   const countMap = Object.fromEntries(
@@ -325,7 +377,7 @@ async function getCommentCount(c: any) {
   return c.json({
     errno: 0,
     errmsg: '',
-    data: urls.map((u: string) => countMap[u] || 0),
+    data: paths.map((u: string) => countMap[u] || 0),
   });
 }
 
@@ -408,6 +460,7 @@ async function formatComment(row: any, isAdmin = false) {
   if (isAdmin) {
     result.mail = row.mail || '';
     result.ip = row.ip || '';
+    result.ua = row.ua || '';
   }
 
   return result;

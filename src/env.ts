@@ -21,6 +21,9 @@ export interface Env {
   SENDER_NAME?: string;
   SENDER_EMAIL?: string;
 
+  // OAuth
+  OAUTH_URL?: string;
+
   // Anti-spam
   AKISMET_KEY?: string;
 

@@ -69,3 +69,9 @@ CREATE TABLE IF NOT EXISTS "wl_Users" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_users_email" ON "wl_Users" ("email");
+
+CREATE TABLE IF NOT EXISTS "wl_Settings" (
+  "key" TEXT PRIMARY KEY,
+  "value" TEXT NOT NULL DEFAULT '',
+  "updatedAt" TEXT DEFAULT (datetime('now'))
+);

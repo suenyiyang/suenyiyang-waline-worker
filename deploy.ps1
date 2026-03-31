@@ -7,6 +7,7 @@
 #>
 
 $ErrorActionPreference = "Stop"
+$Config = if (Test-Path "temp/wrangler.private.toml") { "temp/wrangler.private.toml" } else { "wrangler.toml" }
 
 Write-Host "=== Waline on Worker - 部署脚本 ===" -ForegroundColor Cyan
 Write-Host ""
@@ -38,26 +39,26 @@ try {
 # 创建 D1 数据库（如果 wrangler.toml 中 database_id 为占位符）
 Write-Host ""
 Write-Host "[3/5] 检查 D1 数据库..." -ForegroundColor Yellow
-$tomlContent = Get-Content wrangler.toml -Raw
+$tomlContent = Get-Content $Config -Raw
 if ($tomlContent -match 'database_id\s*=\s*""') {
     Write-Host "创建 D1 数据库..."
-    $dbOutput = npx wrangler d1 create waline-db 2>&1 | Out-String
+    $dbOutput = npx wrangler d1 create waline-db --config $Config 2>&1 | Out-String
     Write-Host $dbOutput
 
     if ($dbOutput -match 'database_id\s*=\s*"([^"]+)"') {
         $dbId = $Matches[1]
         $tomlContent = $tomlContent -replace 'database_id\s*=\s*""', "database_id = `"$dbId`""
-        Set-Content wrangler.toml $tomlContent -NoNewline
-        Write-Host "已更新 wrangler.toml: database_id = $dbId" -ForegroundColor Green
+        Set-Content $Config $tomlContent -NoNewline
+        Write-Host "已更新 $Config: database_id = $dbId" -ForegroundColor Green
     } else {
-        Write-Host "警告: 无法自动提取 database_id，请手动编辑 wrangler.toml" -ForegroundColor DarkYellow
+        Write-Host "警告: 无法自动提取 database_id，请手动编辑 $Config" -ForegroundColor DarkYellow
     }
 }
 
 # 初始化数据库
 Write-Host ""
 Write-Host "[4/5] 初始化数据库 Schema..." -ForegroundColor Yellow
-npx wrangler d1 execute waline-db --file=./schema.sql --remote
+npx wrangler d1 execute waline-db --file=./schema.sql --remote --config $Config
 
 # 设置 JWT_SECRET
 Write-Host ""
@@ -67,14 +68,14 @@ if ($reply -match '^[Yy]$') {
     $bytes = New-Object byte[] 32
     [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
     $jwtSecret = [Convert]::ToBase64String($bytes).Substring(0, 32)
-    $jwtSecret | npx wrangler secret put JWT_SECRET
+    $jwtSecret | npx wrangler secret put JWT_SECRET --config $Config
     Write-Host "JWT_SECRET 已设置" -ForegroundColor Green
 }
 
 # 部署
 Write-Host ""
 Write-Host "=== 开始部署 ===" -ForegroundColor Cyan
-npx wrangler deploy
+npx wrangler deploy --config $Config
 
 Write-Host ""
 Write-Host "=== 部署完成 ===" -ForegroundColor Green

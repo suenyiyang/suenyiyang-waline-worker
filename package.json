@@ -13,10 +13,16 @@
     "type": "git",
     "url": "git+https://github.com/wuyilingwei/Waline_On_Worker.git"
   },
-  "keywords": ["waline", "cloudflare-workers", "comment-system", "d1"],
+  "keywords": [
+    "waline",
+    "cloudflare-workers",
+    "comment-system",
+    "d1"
+  ],
   "author": "wuyilingwei",
   "license": "MIT",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "hono": "^4.12.9"
   },
   "devDependencies": {
