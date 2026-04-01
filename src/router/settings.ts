@@ -32,9 +32,21 @@ settingsRoutes.get('/', async (c) => {
     'SELECT key, value FROM wl_Settings',
   ).all();
 
+  // Sensitive keys that must be masked in API responses
+  const MASKED_KEYS = new Set(['llm_api_key']);
+
   const settings: Record<string, string> = {};
   for (const row of result.results) {
-    settings[row.key as string] = row.value as string;
+    const key = row.key as string;
+    const value = row.value as string;
+    if (MASKED_KEYS.has(key) && value) {
+      // Show only first 3 and last 4 chars: "sk-****xxxx"
+      settings[key] = value.length > 7
+        ? value.slice(0, 3) + '****' + value.slice(-4)
+        : '****';
+    } else {
+      settings[key] = value;
+    }
   }
 
   return c.json({ errno: 0, errmsg: '', data: settings });

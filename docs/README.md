@@ -67,6 +67,7 @@ pnpm run dev
 | `GET` | `/api/comment?type=recent` | 最近评论 | - |
 | `GET` | `/api/comment?type=count&url=` | 评论计数 | - |
 | `GET` | `/api/comment?type=list` | 管理员评论列表 | Admin |
+| `GET` | `/api/comment/rss` | RSS 订阅源 | - |
 | `POST` | `/api/comment` | 创建评论 | - |
 | `PUT` | `/api/comment/:id` | 更新/点赞评论 | Admin/Like |
 | `DELETE` | `/api/comment/:id` | 删除评论（级联） | Admin |
@@ -100,8 +101,11 @@ pnpm run dev
 
 | 方法 | 路径 | 说明 | 鉴权 |
 |------|------|------|------|
-| `GET` | `/api/oauth?type=github` | 发起 OAuth 登录 | - |
-| `GET` | `/api/oauth/callback` | OAuth 回调 | - |
+| `GET` | `/api/oauth?type=<provider>` | 发起 OAuth 登录 | - |
+
+支持的 OAuth 提供方（`type` 参数值）：`github`、`twitter`、`facebook`、`weibo`、`qq`
+
+OAuth 流程通过外部 OAuth 代理服务（默认 `https://oauth.lithub.cc`）实现，可通过环境变量 `OAUTH_URL` 自定义。
 
 ### 数据管理
 
@@ -191,12 +195,13 @@ npx wrangler d1 execute <database-name> --remote --file=backup.sql
 | `llm_model` | LLM 模型名称 | - |
 | `llm_prompt` | LLM 审查提示词 | - |
 
-### OAuth 配置 (通过 `wrangler secret put` 设置)
+### OAuth 配置
 
-| Secret | 说明 |
-|--------|------|
-| `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth App Client Secret |
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `OAUTH_URL` | OAuth 代理服务地址 | `https://oauth.lithub.cc` |
+
+OAuth 登录通过外部代理服务处理 Client ID/Secret，无需在 Worker 中配置各平台密钥。支持 GitHub、Twitter、Facebook、Weibo、QQ 五个平台。
 
 ## 前端对接
 
@@ -225,8 +230,8 @@ npx wrangler d1 execute <database-name> --remote --file=backup.sql
 │   │   ├── article.ts         # 浏览量/反应计数器
 │   │   ├── user.ts            # 用户管理
 │   │   ├── token.ts           # JWT 登录 + 2FA
-│   │   ├── oauth.ts           # GitHub OAuth
-│   │   ├── settings.ts        # Worker 设置管理
+│   │   ├── oauth.ts           # OAuth 登录 (GitHub/Twitter/Facebook/Google/Weibo/QQ)
+│   │   ├── settings.ts        # Worker 设置管理 (API Key 脱敏返回)
 │   │   └── db.ts              # 数据导入导出
 │   ├── middleware/
 │   │   └── auth.ts            # JWT 鉴权中间件

@@ -50,7 +50,7 @@ ${showWorker ? `  <script>
       badgeDone = true;
       var s = document.createElement('span');
       s.className = 'wk-badge';
-      s.textContent = 'Worker v0.1.0';
+      s.textContent = 'Worker v1.0.0';
       op.insertBefore(s, op.firstChild);
     }
 

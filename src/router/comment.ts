@@ -49,6 +49,26 @@ commentRoutes.post('/', async (c) => {
     return c.json({ errno: 1, errmsg: 'comment is required' }, 400);
   }
 
+  // Field length limits (D1 row max ~1MB, Workers CPU budget is limited for markdown rendering)
+  if (typeof comment !== 'string' || comment.length > 65536) {
+    return c.json({ errno: 1, errmsg: 'comment is too long (max 64KB)' }, 400);
+  }
+  if (nick && (typeof nick !== 'string' || nick.length > 255)) {
+    return c.json({ errno: 1, errmsg: 'nick is too long (max 255 chars)' }, 400);
+  }
+  if (mail && (typeof mail !== 'string' || mail.length > 255)) {
+    return c.json({ errno: 1, errmsg: 'mail is too long (max 255 chars)' }, 400);
+  }
+  if (link && (typeof link !== 'string' || link.length > 255)) {
+    return c.json({ errno: 1, errmsg: 'link is too long (max 255 chars)' }, 400);
+  }
+  if (url && (typeof url !== 'string' || url.length > 1024)) {
+    return c.json({ errno: 1, errmsg: 'url is too long (max 1024 chars)' }, 400);
+  }
+  if (ua && (typeof ua !== 'string' || ua.length > 1024)) {
+    return c.json({ errno: 1, errmsg: 'ua is too long (max 1024 chars)' }, 400);
+  }
+
   const ip = c.req.header('CF-Connecting-IP') || '';
   const userInfo = c.get('userInfo');
 
