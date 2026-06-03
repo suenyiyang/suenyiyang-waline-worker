@@ -2,6 +2,8 @@
 
 # Waline on Worker
 
+For international audience: [English Documentation](README_EN.md)
+
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
 一个运行在 **Cloudflare Workers** 上的 [Waline](https://waline.js.org/) 评论系统后端实现，使用 **D1 (SQLite)** 作为数据存储。实现了 Waline 的绝大多数功能。
