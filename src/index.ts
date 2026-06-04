@@ -11,7 +11,7 @@ import { oauthRoutes } from './router/oauth.js';
 import { dbRoutes } from './router/db.js';
 import { getWalinePage } from './ui/waline-page.js';
 import { getAdminPage } from './ui/admin-panel.js';
-import { getCustomSettingsPage, get404Page } from './ui/custom-admin.js';
+import { getCustomSettingsPage } from './ui/custom-admin.js';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -38,7 +38,7 @@ app.use(
 // Waline version header (used by admin panel for export __version field)
 app.use('*', async (c, next) => {
   await next();
-  c.header('x-waline-version', '1.0.0');
+  c.header('x-waline-version', '1.1.0');
 });
 
 // Auth middleware - parse JWT on all routes (non-blocking, skips if no token)
@@ -62,12 +62,8 @@ app.route('/api/settings', settingsRoutes);
 app.route('/api/oauth', oauthRoutes);
 app.route('/api/db', dbRoutes);
 
-// Worker custom settings page (server-side auth-gated)
+// Worker custom settings page — auth is enforced client-side so direct URL access works
 app.get('/ui/worker-setting', async (c) => {
-  const userInfo = c.get('userInfo');
-  if (userInfo?.type !== 'administrator') {
-    return c.html(get404Page(), 404);
-  }
   return c.html(getCustomSettingsPage(c.req.url));
 });
 

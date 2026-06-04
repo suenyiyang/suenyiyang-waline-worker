@@ -1,4 +1,5 @@
 import { getSettings } from '../router/settings.js';
+import type { Env } from '../env.js';
 
 /**
  * Review a comment using an OpenAI-compatible LLM endpoint.
@@ -7,6 +8,7 @@ import { getSettings } from '../router/settings.js';
  */
 export async function reviewComment(
   db: D1Database,
+  env: Env,
   commentText: string,
   nick: string,
   url: string,
@@ -16,24 +18,27 @@ export async function reviewComment(
     'llm_endpoint', 'llm_api_key', 'llm_model', 'llm_prompt',
   ]);
 
-  if (!settings.llm_endpoint || !settings.llm_api_key) return defaultStatus;
-
-  const systemPrompt = settings.llm_prompt ||
+  const endpoint = env.LLM_ENDPOINT || settings.llm_endpoint;
+  const apiKey = env.LLM_API_KEY || settings.llm_api_key;
+  const model = env.LLM_MODEL || settings.llm_model || 'gpt-4o-mini';
+  const systemPrompt = env.LLM_PROMPT || settings.llm_prompt ||
     'You are a review bot. Your task is to review the comments according to following rules: ' +
     '1. Any contact information should not be included, including qq number, email, phone number, etc. ' +
     '2. Any content with advertising or sensitive information should not be included. ' +
     '3. Any other content that is not suitable for public display should not be included. ' +
     '4. Output should be a single word(approved/spam).';
 
+  if (!endpoint || !apiKey) return defaultStatus;
+
   try {
-    const response = await fetch(settings.llm_endpoint, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.llm_api_key}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: settings.llm_model || 'gpt-4o-mini',
+        model: model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: commentText },

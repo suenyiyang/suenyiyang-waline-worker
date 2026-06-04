@@ -28,7 +28,7 @@ export function renderMarkdown(text: string): string {
   // Links [text](url)
   html = html.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
+    '<a href="$2" target="_blank" rel="ugc nofollow noreferrer noopener">$1</a>',
   );
 
   // Bold **text** or __text__
@@ -65,7 +65,7 @@ export function renderMarkdown(text: string): string {
   // Auto-link URLs (not already in href or src)
   html = html.replace(
     /(?<!="|'|>)(https?:\/\/[^\s<)"']+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+    '<a href="$1" target="_blank" rel="ugc nofollow noreferrer noopener">$1</a>',
   );
 
   // Paragraphs: split by double newlines

@@ -4,7 +4,8 @@ import { getAvatar } from '../utils/avatar.js';
 import { parseUA } from '../utils/ua.js';
 import { renderMarkdown } from '../utils/markdown.js';
 import { reviewComment } from '../utils/llm-review.js';
-import { getSetting } from './settings.js';
+import { checkAkismet } from '../utils/akismet.js';
+import { getSettings } from './settings.js';
 
 export const commentRoutes = new Hono<{
   Bindings: Env;
@@ -76,12 +77,16 @@ commentRoutes.post('/', async (c) => {
   // - comment_default_status setting: anonymous users
   // - user_comment_default_status setting: logged-in users
   // - Fallback: AUDIT env var, then approved
+  const statusSettings = await getSettings(c.env.DB, [
+    'comment_default_status',
+    'user_comment_default_status',
+  ]).catch(() => ({} as Record<string, string>));
+
   let status: string;
   if (userInfo) {
-    const userDefault = await getSetting(c.env.DB, 'user_comment_default_status').catch(() => null);
-    status = (userDefault === 'waiting') ? 'waiting' : 'approved';
+    status = statusSettings.user_comment_default_status === 'waiting' ? 'waiting' : 'approved';
   } else {
-    const defaultStatus = await getSetting(c.env.DB, 'comment_default_status').catch(() => null);
+    const defaultStatus = statusSettings.comment_default_status;
     if (defaultStatus === 'waiting' || defaultStatus === 'approved') {
       status = defaultStatus;
     } else if (c.env.AUDIT) {
@@ -122,27 +127,23 @@ commentRoutes.post('/', async (c) => {
     'SELECT * FROM wl_Comment WHERE id = last_insert_rowid()',
   ).first();
 
-  // Async LLM review based on llm_mode and llm_skip_admin settings
+  // Async spam review (Akismet / LLM / Mix)
   if (newComment) {
     const commentId = (newComment as any).id;
-    const db = c.env.DB;
     c.executionCtx.waitUntil(
-      (async () => {
-        const llmMode = await getSetting(db, 'llm_mode').catch(() => null) || 'off';
-        if (llmMode === 'off') return;
-        if (llmMode === 'anonymous' && userInfo) return;
-        // llmMode === 'all': review everyone, but check skip_admin
-        if (userInfo?.type === 'administrator') {
-          const skip = await getSetting(db, 'llm_skip_admin').catch(() => null);
-          if (skip !== '0') return; // default: skip admin
-        }
-        const newStatus = await reviewComment(db, comment, nick || '', url, status);
-        if (newStatus === status) return;
-        await db.prepare(
-          `UPDATE wl_Comment SET status = ?, updatedAt = datetime('now')
-           WHERE id = ? AND status = ?`,
-        ).bind(newStatus, commentId, status).run();
-      })().catch((err) => console.error('[LLM Review Error]', err?.message || err)),
+      runSpamReview({
+        db: c.env.DB,
+        env: c.env,
+        commentId,
+        commentText: comment,
+        nick: nick || '',
+        mail: userInfo?.email || mail || '',
+        ip,
+        ua: ua || '',
+        pageUrl: url,
+        userInfo,
+        currentStatus: status,
+      }).catch((err) => console.error('[Spam Review Error]', err?.message || err)),
     );
   }
 
@@ -458,14 +459,17 @@ async function getCommentList(c: any) {
     children = childResult.results;
   }
 
+  // Pre-fetch all users for roots and children to avoid repeated DB lookups
+  const userMap = await fetchCommentUsers(c.env.DB, [...rootComments.results, ...children]);
+
   // Build threaded structure
   const data = await Promise.all(
     rootComments.results.map(async (root: any) => ({
-      ...(await formatComment(root)),
+      ...(await formatComment(root, false, userMap)),
       children: await Promise.all(
         children
           .filter((child: any) => child.rid === root.id)
-          .map((child: any) => formatComment(child)),
+          .map((child: any) => formatComment(child, false, userMap)),
       ),
     })),
   );
@@ -493,10 +497,11 @@ async function getRecentComments(c: any) {
     .bind(count)
     .all();
 
+  const userMap = await fetchCommentUsers(c.env.DB, result.results);
   return c.json({
     errno: 0,
     errmsg: '',
-    data: await Promise.all(result.results.map((r: any) => formatComment(r))),
+    data: await Promise.all(result.results.map((r: any) => formatComment(r, false, userMap))),
   });
 }
 
@@ -581,6 +586,7 @@ async function getAdminCommentList(c: any) {
     .bind(...params, pageSize, offset)
     .all();
 
+  const userMap = await fetchCommentUsers(c.env.DB, result.results);
   return c.json({
     errno: 0,
     errmsg: '',
@@ -590,38 +596,154 @@ async function getAdminCommentList(c: any) {
       spamCount: 0,
       waitingCount: 0,
       totalPages: Math.ceil(((countResult?.count as number) || 0) / pageSize),
-      data: await Promise.all(result.results.map((r: any) => formatComment(r, true))),
+      data: await Promise.all(result.results.map((r: any) => formatComment(r, true, userMap))),
     },
   });
 }
 
-async function formatComment(row: any, isAdmin = false) {
+/**
+ * Unified spam review: runs Akismet and/or LLM based on spam_mode setting.
+ * Updates comment status in-place; no-ops if mode is off or checks pass.
+ */
+async function runSpamReview(opts: {
+  db: D1Database;
+  env: Env;
+  commentId: number;
+  commentText: string;
+  nick: string;
+  mail: string;
+  ip: string;
+  ua: string;
+  pageUrl: string;
+  userInfo: any;
+  currentStatus: string;
+}): Promise<void> {
+  const { db, env, commentId, commentText, nick, mail, ip, ua, pageUrl, userInfo, currentStatus } = opts;
+
+  const settings = await getSettings(db, [
+    'spam_mode', 'llm_mode', 'llm_skip_admin', 'akismet_key',
+    'llm_endpoint', 'llm_api_key', 'llm_model', 'llm_prompt',
+  ]).catch(() => ({} as Record<string, string>));
+
+  // Determine effective mode: env SPAM_MODE takes priority over DB setting; DB falls back to old llm_mode
+  let mode = env.SPAM_MODE || settings.spam_mode || '';
+  if (!mode) {
+    const legacy = settings.llm_mode || 'off';
+    mode = legacy === 'off' ? 'off' : 'llm';
+  }
+
+  if (mode === 'off') return;
+
+  // Akismet logic: env AKISMET_KEY > DB akismet_key
+  const effectiveAkismetKey = env.AKISMET_KEY || settings.akismet_key || '';
+
+  // LLM logic: env > DB
+  const skipAdminLlm = (userInfo?.type === 'administrator') && (env.LLM_SKIP_ADMIN || settings.llm_skip_admin) !== '0';
+
+  let isSpam = false;
+
+  if ((mode === 'akismet' || mode === 'mix') && effectiveAkismetKey) {
+    const spamByAkismet = await checkAkismet(effectiveAkismetKey, env.SITE_URL || '', {
+      ip,
+      ua,
+      comment: commentText,
+      author: nick,
+      email: mail,
+      pageUrl,
+    });
+    if (spamByAkismet) isSpam = true;
+  }
+
+  if (!isSpam && (mode === 'llm' || mode === 'mix') && !skipAdminLlm) {
+    // Review comment will read settings again (for now), but we should pass down the env values if available
+    // For now we trust that reviewComment reads exactly what it needs from DB,
+    // but in a future refactor we should pass all config as an object.
+    const newStatus = await reviewComment(db, env, commentText, nick, pageUrl, currentStatus);
+    if (newStatus === 'spam') isSpam = true;
+  }
+
+  if (!isSpam) return;
+
+  await db.prepare(
+    `UPDATE wl_Comment SET status = 'spam', updatedAt = datetime('now') WHERE id = ? AND status = ?`,
+  ).bind(commentId, currentStatus).run();
+}
+
+/**
+ * Internal: helper to fetch users for a list of comments to avoid N+1 queries.
+ */
+async function fetchCommentUsers(db: D1Database, rows: any[]): Promise<Map<number, any>> {
+  const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+  const userMap = new Map<number, any>();
+  if (userIds.length === 0) return userMap;
+
+  const placeholders = userIds.map(() => '?').join(',');
+  const result = await db.prepare(
+    `SELECT id, display_name, email, type, url, avatar, label FROM wl_Users WHERE id IN (${placeholders})`,
+  )
+    .bind(...userIds)
+    .all();
+
+  for (const user of result.results) {
+    userMap.set((user as any).id, user);
+  }
+  return userMap;
+}
+
+async function formatComment(row: any, isAdmin = false, userMap?: Map<number, any>) {
   if (!row) return null;
+  const user = row.user_id ? userMap?.get(row.user_id) : null;
+
+  const nick = user?.display_name || row.nick || 'Anonymous';
+  const mail = user?.email || row.mail || '';
+  const link = user?.url || row.link || '';
+
   const { browser, os } = parseUA(row.ua || '');
-  const avatar = await getAvatar(row.mail || '');
+  const avatar = user?.avatar || await getAvatar(mail);
+
+  // Gracefully handle null timestamps and ensure standard ISO format.
+  // legacy data might have numeric timestamps or strings with space.
+  let rawDate = row.insertedAt || row.createdAt;
+  let time = 0;
+  let isoDate = '';
+
+  if (rawDate) {
+    if (typeof rawDate === 'number') {
+      time = rawDate;
+      isoDate = new Date(time).toISOString();
+    } else {
+      const s = String(rawDate).replace(' ', 'T');
+      const d = new Date(s.endsWith('Z') || s.includes('T') ? s : s + 'Z');
+      time = d.getTime();
+      isoDate = isNaN(time) ? '' : d.toISOString();
+    }
+  }
+
   const result: Record<string, any> = {
     objectId: row.id,
     comment: row.comment || '',
     orig: row.orig || row.comment || '',
-    nick: row.nick || '',
-    link: row.link || '',
+    nick,
+    link,
     avatar,
     browser,
     os,
-    time: new Date(row.insertedAt + 'Z').getTime(),
-    insertedAt: row.insertedAt ? row.insertedAt + 'Z' : '',
-    createdAt: row.createdAt ? row.createdAt + 'Z' : '',
+    time: isNaN(time) ? 0 : time,
+    insertedAt: isoDate,
+    createdAt: isoDate,
     status: row.status,
-    like: row.like || 0,
+    like: row.like ?? 0,
     url: row.url,
     pid: row.pid,
     rid: row.rid,
     sticky: Boolean(row.sticky),
     user_id: row.user_id,
+    type: user?.type || (row.user_id ? 'guest' : ''),
+    label: user?.label || '',
   };
 
   if (isAdmin) {
-    result.mail = row.mail || '';
+    result.mail = mail;
     result.ip = row.ip || '';
     result.ua = row.ua || '';
   }

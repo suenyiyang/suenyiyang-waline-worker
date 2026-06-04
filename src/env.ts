@@ -26,6 +26,12 @@ export interface Env {
 
   // Anti-spam
   AKISMET_KEY?: string;
+  SPAM_MODE?: string;
+  LLM_SKIP_ADMIN?: string;
+  LLM_ENDPOINT?: string;
+  LLM_API_KEY?: string;
+  LLM_MODEL?: string;
+  LLM_PROMPT?: string;
 
   // CAPTCHA
   TURNSTILE_KEY?: string;

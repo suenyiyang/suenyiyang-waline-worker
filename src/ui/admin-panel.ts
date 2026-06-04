@@ -5,10 +5,14 @@
  * works on first login without page refresh
  */
 import type { Env } from '../env.js';
-import { getSetting } from '../router/settings.js';
+import { getSettings } from '../router/settings.js';
 
 export async function getAdminPage(env: Env, requestUrl: string): Promise<string> {
-  const workerDisplay = await getSetting(env.DB, 'worker_display').catch(() => null) || 'admin';
+  const settings = await getSettings(env.DB, [
+    'worker_display', 'waline_admin_version',
+  ]).catch(() => ({} as Record<string, string>));
+  const workerDisplay = settings.worker_display || 'admin';
+  const adminVersion = (settings.waline_admin_version || 'latest').trim();
   const url = new URL(requestUrl);
   const serverURL = `${url.origin}/api/`;
   const siteName = env.SITE_NAME || '';
@@ -19,6 +23,20 @@ export async function getAdminPage(env: Env, requestUrl: string): Promise<string
 
   const showWorker = workerDisplay !== 'disabled';
   const showAlways = workerDisplay === 'always';
+
+  // Build unpkg script src. Examples:
+  //   latest        -> //unpkg.com/@waline/admin
+  //   0.34.1        -> //unpkg.com/@waline/admin@0.34.1
+  //   v0.34.1       -> //unpkg.com/@waline/admin@v0.34.1
+  //   @0.34.1       -> //unpkg.com/@waline/admin@0.34.1 (strip leading @)
+  //   npm:@waline/admin@latest  -> //unpkg.com/@waline/admin@latest
+  const cleanVersion = adminVersion
+    .replace(/^npm:@waline\/admin@?/, '')
+    .replace(/^@/, '')
+    .trim();
+  const adminScript = cleanVersion && cleanVersion !== 'latest'
+    ? `//unpkg.com/@waline/admin@${cleanVersion}`
+    : '//unpkg.com/@waline/admin';
 
   return `<!doctype html>
 <html>
@@ -36,7 +54,25 @@ ${showWorker ? `  <style>.wk-badge{display:inline-block;margin-right:8px;padding
     window.recaptchaV3Key = ${JSON.stringify(recaptchaV3Key || undefined)};
     window.turnstileKey = ${JSON.stringify(turnstileKey || undefined)};
   </script>
-  <script src="//unpkg.com/@waline/admin"></script>
+  <!-- Block @waline/vercel upgrade notification: irrelevant for Workers deployment.
+       The admin header fetches registry.npmjs.org to compare x-waline-version against
+       the latest @waline/vercel release. Intercepting that request prevents the popup. -->
+  <script>
+  (function(){
+    var _fetch = window.fetch;
+    window.fetch = function(input, init) {
+      var url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+      if (url.indexOf('registry.npmjs.org/@waline/vercel') !== -1) {
+        return Promise.resolve(new Response('{}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }));
+      }
+      return _fetch.call(this, input, init);
+    };
+  })();
+  </script>
+  <script src="${adminScript}"></script>
 ${showWorker ? `  <script>
   (function(){
     var ORIGIN = ${JSON.stringify(origin)};
@@ -50,22 +86,46 @@ ${showWorker ? `  <script>
       badgeDone = true;
       var s = document.createElement('span');
       s.className = 'wk-badge';
-      s.textContent = 'Worker v1.0.0';
+      s.textContent = 'Worker v1.1.0';
       op.insertBefore(s, op.firstChild);
     }
 
-    function addMenu(tk) {
+    function addMenu() {
       if (menuDone) return;
-      var nav = document.querySelector('#typecho-nav-list .child');
-      if (!nav) return;
       menuDone = true;
-      var li = document.createElement('li');
-      li.className = 'last';
-      var a = document.createElement('a');
-      a.href = '/ui/worker-setting?token=' + encodeURIComponent(tk);
-      a.textContent = 'Worker';
-      li.appendChild(a);
-      nav.appendChild(li);
+      var fab = document.createElement('a');
+      fab.href = '/ui/worker-setting';
+      fab.title = 'Worker 设置';
+      fab.setAttribute('aria-label', 'Worker 设置');
+      fab.onclick = function(e) {
+        e.preventDefault();
+        window.location.href = this.href;
+      };
+      fab.style.cssText = [
+        'position:fixed',
+        'bottom:24px',
+        'right:24px',
+        'width:44px',
+        'height:44px',
+        'border-radius:50%',
+        'background:#f97316',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
+        'text-decoration:none',
+        'box-shadow:0 2px 8px rgba(0,0,0,.28)',
+        'z-index:9999',
+        'transition:transform .15s,box-shadow .15s',
+        'user-select:none',
+      ].join(';');
+      var img = document.createElement('img');
+      img.src = 'https://waline.js.org/logo.png';
+      img.alt = '';
+      img.style.cssText = 'width:28px;height:28px;filter:brightness(0) invert(1)';
+      fab.appendChild(img);
+      fab.addEventListener('mouseenter', function(){ fab.style.transform='scale(1.12)'; fab.style.boxShadow='0 4px 16px rgba(0,0,0,.35)'; });
+      fab.addEventListener('mouseleave', function(){ fab.style.transform=''; fab.style.boxShadow='0 2px 8px rgba(0,0,0,.28)'; });
+      document.body.appendChild(fab);
     }
 
     function tryInject() {
@@ -78,7 +138,7 @@ ${showWorker ? `  <script>
           headers: { Authorization: 'Bearer ' + tk }
         }).then(function(r){ return r.json(); }).then(function(d){
           if (d.errno === 0 && d.data && d.data.type === 'administrator') {
-            addMenu(tk);
+            addMenu();
             addBadge();
           }
         }).catch(function(){});

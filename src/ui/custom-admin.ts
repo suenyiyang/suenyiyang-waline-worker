@@ -1,24 +1,9 @@
 /**
- * Worker Settings Page - Typecho-style admin page for non-standard Waline features
- * Served at /ui/worker-setting, server-side auth-gated (only admins see this page)
+ * Worker Settings Page — standalone admin page for non-standard Waline features.
+ * Matches @waline/admin 0.34.0 design style with independent header, tabbed layout,
+ * i18n support (zh-CN / en), and client-side auth.
  */
 
-/**
- * Returns a genuine-looking 404 page for non-admin visitors
- */
-export function get404Page(): string {
-  return `<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>404 Not Found</title></head>
-<body style="font-family:sans-serif;text-align:center;margin-top:120px;color:#656d76">
-<h1 style="font-size:48px;margin-bottom:8px">404</h1><p>Not Found</p>
-</body>
-</html>`;
-}
-
-/**
- * Returns the full Typecho-styled settings page (only served to authenticated admins)
- */
 export function getCustomSettingsPage(requestUrl: string): string {
   const url = new URL(requestUrl);
   const apiBase = url.origin;
@@ -27,205 +12,390 @@ export function getCustomSettingsPage(requestUrl: string): string {
 <html>
 <head>
 <meta charset="utf-8">
-<title>Worker Settings - Waline Management</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Worker Settings</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-/* Typecho admin theme */
 *{box-sizing:border-box}
-body{margin:0;font:87.5%/1.5 'Helvetica Neue',Helvetica,Arial,sans-serif;background:#f6f6f3;color:#444}
-a{color:#467b96;text-decoration:none}a:hover{color:#499bc3}
+body{margin:0;font:87.5%/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f5f5f5;color:#333}
+a{color:#f97316;text-decoration:none}a:hover{color:#ea580c}
 
-/* Navigation */
-.typecho-head-nav{padding:0 10px;background:#292d33;height:36px;line-height:36px}
-.typecho-head-nav .inner{max-width:960px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.typecho-head-nav .nav-links{display:flex;align-items:center;gap:0}
-.typecho-head-nav a{color:#bbb;padding:0 20px;display:inline-block;height:36px;line-height:36px;font-size:13px}
-.typecho-head-nav a:hover,.typecho-head-nav a.focus{color:#fff;background:#202328;text-decoration:none}
-.typecho-head-nav .nav-sep{border-right:1px solid #383d45}
-.typecho-head-nav .operate{margin-left:auto}
+/* Header — matching @waline/admin 0.34.0 */
+.typecho-head-nav{background:#1e293b;padding:0 16px;height:52px;display:flex;align-items:center}
+.typecho-head-nav .waline-header{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:1024px;margin:0 auto}
+.typecho-head-nav .brand{display:flex;align-items:center;gap:10px;color:#fff;font-size:15px;font-weight:600}
+.typecho-head-nav .brand-mark{display:inline-block;width:44px;height:44px;background:url('https://waline.js.org/logo.png') no-repeat center/cover;filter:brightness(0) saturate(100%) invert(55%) sepia(98%) saturate(2021%) hue-rotate(346deg) brightness(98%) contrast(97%)}
+.typecho-head-nav .nav-links{display:flex;align-items:center;gap:12px}
+.typecho-head-nav .nav-links a{color:#94a3b8;font-size:13px;padding:6px 14px;border-radius:6px;transition:background .15s}
+.typecho-head-nav .nav-links a:hover{color:#e2e8f0;background:rgba(255,255,255,.08)}
 
-/* Page title */
-.typecho-page-title{max-width:960px;margin:30px auto 0;padding:0 10px}
-.typecho-page-title h2{font-size:1.28571em;margin:0 0 10px;font-weight:400}
+/* Language toggle buttons */
+.lang-toggle{display:flex;border-radius:6px;overflow:hidden;border:1px solid #475569}
+.lang-toggle button{padding:4px 10px;font-size:12px;line-height:18px;border:none;background:#334155;color:#94a3b8;cursor:pointer;transition:all .15s}
+.lang-toggle button.active{background:#f97316;color:#fff}
+.lang-toggle button:hover:not(.active){color:#e2e8f0;background:rgba(255,255,255,.06)}
 
 /* Content */
-.container{max-width:960px;margin:20px auto;padding:0 10px}
+.container{max-width:1024px;margin:24px auto;padding:0 16px}
 
-/* Options/form */
-.typecho-option-tabs{list-style:none;margin:0 0 -1px;padding:0;display:flex;border-bottom:1px solid #d9d9d6}
-.typecho-option-tabs li{margin:0}
-.typecho-option-tabs li a{display:block;padding:8px 20px;color:#444;border:1px solid transparent;border-bottom:none;margin-bottom:-1px;font-size:13px}
-.typecho-option-tabs li.active a{background:#fff;border-color:#d9d9d6;border-bottom-color:#fff;font-weight:bold}
-.typecho-option-tabs li a:hover{color:#467b96;text-decoration:none}
+/* Tab bar */
+.tabs{display:flex;gap:0;margin-bottom:-1px}
+.tab-btn{padding:10px 20px;font-size:13px;border:none;background:#e2e8f0;color:#64748b;cursor:pointer;border-radius:8px 8px 0 0;transition:all .15s}
+.tab-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 -2px 6px rgba(0,0,0,.04)}
+.tab-btn:hover:not(.active){color:#334155;background:#cbd5e1}
 
-.typecho-table-wrap{padding:30px;background:#fff;border:1px solid #d9d9d6;border-top:none}
+/* Tab panels */
+.tab-panel{background:#fff;border-radius:0 8px 8px 8px;padding:28px;display:none;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.tab-panel.active{display:block}
 
-.typecho-option{margin-bottom:20px}
-.typecho-option .typecho-label{display:block;margin-bottom:.5em;font-weight:bold;font-size:13px}
-.typecho-option .description{margin:.5em 0 0;color:#999;font-size:12px}
+/* Section heading */
+.section-heading{font-size:13px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:0 0 16px;padding-bottom:8px;border-bottom:1px solid #f1f5f9}
 
-input[type="text"],input[type="password"],input[type="url"],textarea,select{
-  background:#fff;border:1px solid #d9d9d6;padding:7px;border-radius:2px;font-size:13px;font-family:inherit;outline:none;
+/* Form field */
+.field{margin-bottom:22px}
+.field-label{display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:6px}
+.field-hint{font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.5}
+.field-hint code{background:#f1f5f9;padding:1px 6px;border-radius:4px;font-size:12px;color:#ea580c}
+
+input[type="text"],input[type="url"],textarea,select{
+  width:100%;max-width:480px;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;
+  border-radius:6px;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s
 }
-input[type="text"]:focus,input[type="password"]:focus,input[type="url"]:focus,textarea:focus,select:focus{
-  border-color:#467b96;box-shadow:0 0 0 2px rgba(70,123,150,.15);
-}
-input[type="text"],input[type="password"],input[type="url"]{width:100%;max-width:480px}
-textarea{width:100%;max-width:480px;resize:vertical;min-height:80px;line-height:1.5}
-select{height:32px;min-width:200px}
+input[type="text"]:focus,input[type="url"]:focus,textarea:focus,select:focus{border-color:#f97316}
+input:disabled,select:disabled,textarea:disabled{background:#f8fafc;color:#94a3b8;cursor:not-allowed}
+textarea{resize:vertical;min-height:80px;line-height:1.5}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27%3E%3Cpath d=%27M2 4l4 4 4-4%27 fill=%27none%27 stroke=%27%2394a3b8%27 stroke-width=%271.5%27/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px}
 
 /* Version picker */
-.version-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.version-row input{flex:1;max-width:320px}
-.version-row select{flex:0 0 auto;max-width:200px}
+.version-row{display:flex;align-items:center;gap:8px}
+.version-row input{flex:1;max-width:260px}
+.version-row select{flex:0 0 auto;max-width:180px}
 .version-row .btn{flex:0 0 auto}
 
 /* Toggle */
 .toggle-row{display:flex;align-items:center;gap:10px}
-.toggle{position:relative;display:inline-block;width:40px;height:22px;vertical-align:middle}
+.toggle{position:relative;display:inline-block;width:38px;height:22px;cursor:pointer}
 .toggle input{opacity:0;width:0;height:0}
-.toggle-slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:22px;transition:.2s}
+.toggle-slider{position:absolute;inset:0;background:#cbd5e1;border-radius:22px;transition:.2s}
 .toggle-slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
-.toggle input:checked+.toggle-slider{background:#467b96}
-.toggle input:checked+.toggle-slider:before{transform:translateX(18px)}
-.toggle-label{font-size:13px;color:#666}
+.toggle input:checked+.toggle-slider{background:#f97316}
+.toggle input:checked+.toggle-slider:before{transform:translateX(16px)}
+.toggle-label{font-size:13px;color:#475569}
 
 /* Buttons */
-.btn{border:none;background:#e9e9e6;cursor:pointer;border-radius:2px;display:inline-block;padding:0 12px;height:32px;color:#666;font-size:13px;vertical-align:middle;line-height:32px}
-.btn:hover{background:#dbdbd6;transition:.2s}
-.primary{background:#467b96;color:#fff}
-.primary:hover{background:#3c6a81}
-.btn-warn{background:#b94a48;color:#fff}
-.btn-warn:hover{background:#a4403f}
-.btn-xs{padding:0 10px;height:25px;font-size:12px;line-height:25px}
-.actions{margin-top:20px;display:flex;gap:8px}
+.btn{padding:8px 16px;border:none;border-radius:6px;font-size:13px;font-family:inherit;cursor:pointer;transition:all .15s}
+.btn-primary{background:#f97316;color:#fff}
+.btn-primary:hover{background:#ea580c}
+.btn-secondary{background:#f1f5f9;color:#475569}
+.btn-secondary:hover{background:#e2e8f0}
+.btn-xs{padding:4px 10px;font-size:12px}
+.actions{margin-top:24px;display:flex;gap:10px}
 
 /* Toast */
-.toast{position:fixed;top:16px;right:16px;padding:10px 16px;border-radius:2px;font-size:13px;z-index:100;animation:fadeIn .2s}
-.toast-ok{background:#e6efc2;color:#264409}.toast-err{background:#fbe3e4;color:#8a1f11}
-@keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.toast{position:fixed;top:20px;right:20px;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;animation:slideIn .25s ease;box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.toast-ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+.toast-err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+@keyframes slideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
 
-/* Loading spinner */
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ccc;border-top-color:#467b96;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-left:6px}
+/* Spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:#f97316;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-left:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Auth */
+#auth-loading{display:flex;align-items:center;justify-content:center;height:200px;color:#94a3b8;font-size:14px;gap:8px}
+/* Hide main content by class so inline style can override it */
+#main-content.hidden{display:none}
 </style>
 </head>
 <body>
+<script>
+window.__I18N = {
+  'zh-CN': {
+    title: 'Worker 设置',
+    loading: '正在验证权限…',
+    back: '← 返回管理面板',
+    tabFrontend: '前端版本',
+    tabComment: '评论策略',
+    clientVersionLabel: '@waline/client CDN 版本',
+    clientVersionHint: '输入版本号（如 <code>v3</code>），留空默认使用 <code>latest</code>。',
+    adminVersionLabel: '@waline/admin CDN 版本',
+    adminVersionHint: '输入版本号（如 <code>0.34.1</code>），留空默认使用 <code>latest</code>。',
+    workerDisplayLabel: 'Worker 信息显示',
+    workerDisplayAlways: '始终显示',
+    workerDisplayAdmin: '仅管理员登录',
+    workerDisplayDisabled: '禁用',
+    workerDisplayHint: '控制 Waline on Worker 标识的可见性。「始终」对所有人可见，「仅管理员」仅管理员登录后可见，「禁用」完全隐藏。',
+    defaultStatus: '默认状态',
+    anonymousStatusLabel: '匿名评论默认状态',
+    anonymousStatusHint: '未登录用户发表评论的默认状态。此设置优先于环境变量 AUDIT。',
+    userStatusLabel: '已登录用户评论默认状态',
+    userStatusHint: '已登录用户发表评论的默认状态。',
+    approved: '直接通过 (approved)',
+    waiting: '等待审核 (waiting)',
+    spamReview: '反垃圾评论',
+    spamModeLabel: '反垃圾模式',
+    spamModeHint: '「关」不检测；「Akismet」使用 Akismet 服务；「LLM」使用大模型；「Mix」两者并用，任一判定为垃圾则标记。',
+    spamOff: '关',
+    akismetKeyLabel: 'Akismet API Key',
+    akismetKeyHint: '在此输入密钥，或通过 <strong>AKISMET_KEY</strong> 环境变量（<code>wrangler secret put AKISMET_KEY</code>）设置。环境变量优先级高于此处填写的值。',
+    llmSkipAdminLabel: '管理员跳过 LLM 审查',
+    llmSkipAdminToggle: '管理员发表的评论跳过 LLM 审查（默认开启）',
+    llmEndpointLabel: 'API Endpoint',
+    llmEndpointHint: 'OpenAI 兼容的 Chat Completions 端点',
+    llmKeyLabel: 'API Key',
+    llmModelLabel: 'Model',
+    llmPromptLabel: 'System Prompt',
+    llmFallbackHint: 'LLM 调用失败时，将遵循对应的评论默认状态设置。',
+    testBtn: '测试 LLM 连接',
+    saveBtn: '保存设置',
+    refreshBtn: '↻ 刷新',
+    chooseVersion: '选择版本…',
+    versionsRefreshed: '版本列表已刷新',
+    adminVersionsRefreshed: 'Admin 版本列表已刷新',
+    fetchFailed: '获取版本失败: {msg}',
+    loadFailed: '加载设置失败',
+    saveOk: '设置已保存！',
+    saveFailed: '保存失败',
+    unauthorized: '权限不足，正在跳转登录页…',
+    authFailed: '验证失败，请刷新重试。',
+    llmOk: 'LLM 连接正常！',
+    llmFail: '失败: {code}',
+    llmError: '错误: {msg}',
+    envOverride: '此设置被环境变量 / wrangler secret 覆盖',
+    akismetLink: '申请地址：',
+  },
+  en: {
+    title: 'Worker Settings',
+    loading: 'Verifying permissions…',
+    back: '← Back to Dashboard',
+    tabFrontend: 'Frontend Versions',
+    tabComment: 'Comment Policy',
+    clientVersionLabel: '@waline/client CDN Version',
+    clientVersionHint: 'Enter a version (e.g. <code>v3</code>). Leave blank to use <code>latest</code>.',
+    adminVersionLabel: '@waline/admin CDN Version',
+    adminVersionHint: 'Enter a version (e.g. <code>0.34.1</code>). Leave blank to use <code>latest</code>.',
+    workerDisplayLabel: 'Worker Branding',
+    workerDisplayAlways: 'Always Visible',
+    workerDisplayAdmin: 'Admin Only',
+    workerDisplayDisabled: 'Disabled',
+    workerDisplayHint: 'Controls visibility of the Waline on Worker badge.',
+    defaultStatus: 'Default Status',
+    anonymousStatusLabel: 'Anonymous Comment Default',
+    anonymousStatusHint: 'Default status for comments from unauthenticated users. Takes precedence over the AUDIT env var.',
+    userStatusLabel: 'Authenticated User Comment Default',
+    userStatusHint: 'Default status for comments from logged-in users.',
+    approved: 'Approved',
+    waiting: 'Pending Review (waiting)',
+    spamReview: 'Spam Review',
+    spamModeLabel: 'Spam Detection Mode',
+    spamModeHint: '"Off" — no detection; "Akismet" — Akismet only; "LLM" — LLM only; "Mix" — both, mark as spam if either flags it.',
+    spamOff: 'Off',
+    akismetKeyLabel: 'Akismet API Key',
+    akismetKeyHint: 'Enter the key here, or set <strong>AKISMET_KEY</strong> env var (<code>wrangler secret put AKISMET_KEY</code>). Env var takes precedence.',
+    llmSkipAdminLabel: 'Skip Admin LLM Review',
+    llmSkipAdminToggle: 'Skip LLM review for admin comments (enabled by default)',
+    llmEndpointLabel: 'API Endpoint',
+    llmEndpointHint: 'OpenAI-compatible Chat Completions endpoint',
+    llmKeyLabel: 'API Key',
+    llmModelLabel: 'Model',
+    llmPromptLabel: 'System Prompt',
+    llmFallbackHint: 'If the LLM call fails, the corresponding default comment status is used.',
+    testBtn: 'Test LLM Connection',
+    saveBtn: 'Save Settings',
+    refreshBtn: '↻ Refresh',
+    chooseVersion: 'Choose version…',
+    versionsRefreshed: 'Version list refreshed',
+    adminVersionsRefreshed: 'Admin version list refreshed',
+    fetchFailed: 'Failed to fetch versions: {msg}',
+    loadFailed: 'Failed to load settings',
+    saveOk: 'Settings saved!',
+    saveFailed: 'Failed to save',
+    unauthorized: 'Access denied. Redirecting to login…',
+    authFailed: 'Verification failed. Please refresh.',
+    llmOk: 'LLM connection OK!',
+    llmFail: 'Failed: {code}',
+    llmError: 'Error: {msg}',
+    envOverride: 'Overridden by environment variable / wrangler secret',
+    akismetLink: 'Get a key at ',
+  }
+};
+</script>
 
-<!-- Navigation -->
-<div class="typecho-head-nav">
-  <div class="inner">
-    <div class="nav-links">
-      <span style="color:#fff;font-size:13px;padding:0 20px">Waline On Worker 设置</span>
+<!-- Header -->
+<header class="typecho-head-nav">
+  <div class="waline-header">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span data-i18n="title">Worker Settings</span>
     </div>
-    <div class="operate">
-      <a href="/ui">← 返回管理面板</a>
+    <div class="nav-links">
+      <div class="lang-toggle">
+        <button data-lang="zh-CN" class="active">中</button>
+        <button data-lang="en">EN</button>
+      </div>
+      <a href="/ui" data-i18n="back">← Back to Dashboard</a>
     </div>
   </div>
+</header>
+
+<div id="auth-loading">
+  <span class="spinner"></span>
+  <span data-i18n="loading">Verifying permissions…</span>
 </div>
 
-<!-- Content -->
+<div id="main-content" class="hidden">
 <div class="container">
-  <!-- Tab bar -->
-  <ul class="typecho-option-tabs" id="tabs">
-    <li class="active"><a href="#" data-tab="frontend">前端版本</a></li>
-    <li><a href="#" data-tab="comment">评论策略</a></li>
-  </ul>
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="frontend" data-i18n="tabFrontend">Frontend Versions</button>
+    <button class="tab-btn" data-tab="comment" data-i18n="tabComment">Comment Policy</button>
+  </div>
 
-  <!-- Tab: Frontend Version -->
-  <div class="typecho-table-wrap tab-panel" id="tab-frontend">
-    <div class="typecho-option">
-      <label class="typecho-label">@waline/client CDN 版本</label>
+  <div class="tab-panel active" id="tab-frontend">
+    <div class="field">
+      <label class="field-label" data-i18n="clientVersionLabel">@waline/client CDN Version</label>
       <div class="version-row">
         <input type="text" id="set-version" placeholder="v3" />
         <select id="version-select">
-          <option value="">选择版本…</option>
+          <option value="">Choose version…</option>
           <option value="latest">latest</option>
         </select>
-        <button class="btn btn-xs" id="refresh-versions" title="刷新版本列表">↻ 刷新</button>
+        <button class="btn btn-secondary btn-xs" id="refresh-versions" data-i18n-title="refreshBtn">↻ Refresh</button>
       </div>
-      <p class="description">从 unpkg CDN 加载的 @waline/client 版本。可输入版本号（如 <code>v3</code>、<code>3.3.2</code>）或从下拉菜单选择。</p>
+      <p class="field-hint" data-i18n-html="clientVersionHint">Enter a version (e.g. <code>v3</code>). Leave blank to use <code>latest</code>.</p>
     </div>
-    <div class="typecho-option">
-      <label class="typecho-label">Worker 信息显示</label>
+    <div class="field">
+      <label class="field-label" data-i18n="adminVersionLabel">@waline/admin CDN Version</label>
+      <div class="version-row">
+        <input type="text" id="set-admin-version" placeholder="latest" />
+        <select id="admin-version-select">
+          <option value="">Choose version…</option>
+          <option value="latest">latest</option>
+        </select>
+        <button class="btn btn-secondary btn-xs" id="refresh-admin-versions" data-i18n-title="refreshBtn">↻ Refresh</button>
+      </div>
+      <p class="field-hint" data-i18n-html="adminVersionHint">Enter a version (e.g. <code>0.34.1</code>). Leave blank to use <code>latest</code>.</p>
+    </div>
+    <div class="field">
+      <label class="field-label" data-i18n="workerDisplayLabel">Worker Branding</label>
       <select id="set-worker-display">
-        <option value="always">始终显示</option>
-        <option value="admin" selected>仅管理员登录</option>
-        <option value="disabled">禁用</option>
+        <option value="always" data-i18n="workerDisplayAlways">Always Visible</option>
+        <option value="admin" selected data-i18n="workerDisplayAdmin">Admin Only</option>
+        <option value="disabled" data-i18n="workerDisplayDisabled">Disabled</option>
       </select>
-      <p class="description">控制 Waline on Worker 标识在页面和控制台中的可见性。「始终」对所有人可见，「仅管理员」仅管理员登录后可见，「禁用」完全隐藏。</p>
+      <p class="field-hint" data-i18n="workerDisplayHint">Controls visibility of the Waline on Worker badge.</p>
     </div>
   </div>
 
-  <!-- Tab: Comment Policy + LLM Review -->
-  <div class="typecho-table-wrap tab-panel" id="tab-comment" style="display:none">
-    <h4 style="margin:0 0 16px;font-size:14px;color:#444;border-bottom:1px solid #eee;padding-bottom:8px">默认状态</h4>
-    <div class="typecho-option">
-      <label class="typecho-label">匿名评论默认状态</label>
+  <div class="tab-panel" id="tab-comment">
+    <h4 class="section-heading" data-i18n="defaultStatus">Default Status</h4>
+    <div class="field">
+      <label class="field-label" data-i18n="anonymousStatusLabel">Anonymous Comment Default</label>
       <select id="set-comment-status">
-        <option value="approved">直接通过 (approved)</option>
-        <option value="waiting">等待审核 (waiting)</option>
+        <option value="approved" data-i18n="approved">Approved</option>
+        <option value="waiting" data-i18n="waiting">Pending Review (waiting)</option>
       </select>
-      <p class="description">未登录用户发表评论的默认状态。此设置优先于环境变量 AUDIT。</p>
+      <p class="field-hint" data-i18n="anonymousStatusHint">Default status for comments from unauthenticated users.</p>
     </div>
-    <div class="typecho-option">
-      <label class="typecho-label">用户评论默认状态</label>
+    <div class="field">
+      <label class="field-label" data-i18n="userStatusLabel">Authenticated User Comment Default</label>
       <select id="set-user-comment-status">
-        <option value="approved">直接通过 (approved)</option>
-        <option value="waiting">等待审核 (waiting)</option>
+        <option value="approved" data-i18n="approved">Approved</option>
+        <option value="waiting" data-i18n="waiting">Pending Review (waiting)</option>
       </select>
-      <p class="description">已登录用户发表评论的默认状态。</p>
+      <p class="field-hint" data-i18n="userStatusHint">Default status for comments from logged-in users.</p>
     </div>
-    <h4 style="margin:24px 0 16px;font-size:14px;color:#444;border-bottom:1px solid #eee;padding-bottom:8px">LLM 审查</h4>
-    <div class="typecho-option">
-      <label class="typecho-label">LLM 审查模式</label>
-      <select id="set-llm-mode">
-        <option value="off">关闭</option>
-        <option value="anonymous">仅对匿名评论启用</option>
-        <option value="all" selected>全部评论 (默认)</option>
+
+    <h4 class="section-heading" data-i18n="spamReview">Spam Review</h4>
+    <div class="field">
+      <label class="field-label" data-i18n="spamModeLabel">Spam Detection Mode</label>
+      <select id="set-spam-mode">
+        <option value="off" data-i18n="spamOff">Off</option>
+        <option value="akismet">Akismet</option>
+        <option value="llm">LLM</option>
+        <option value="mix">Mix (Akismet + LLM)</option>
       </select>
-      <p class="description">选择 LLM 自动审查的适用范围。「关闭」不进行审查；「仅匿名」仅审查未登录用户的评论；「全部」审查所有评论。</p>
+      <p class="field-hint" data-i18n="spamModeHint">Select the spam detection method.</p>
     </div>
-    <div class="typecho-option">
-      <label class="typecho-label">管理员跳过审查</label>
-      <div class="toggle-row">
-        <label class="toggle"><input type="checkbox" id="set-llm-skip-admin" checked /><span class="toggle-slider"></span></label>
-        <span class="toggle-label">管理员发表的评论跳过 LLM 审查（默认开启）</span>
+
+    <div id="section-akismet" style="display:none">
+      <div class="field">
+        <label class="field-label" data-i18n="akismetKeyLabel">Akismet API Key</label>
+        <input type="text" id="set-akismet-key" placeholder="xxxxxxxxxxxx" />
+        <p class="field-hint"><span data-i18n="akismetKeyHint">Enter the key here.</span> <span data-i18n="akismetLink">Get a key at </span><a href="https://akismet.com" target="_blank" rel="noopener">akismet.com</a></p>
       </div>
     </div>
-    <div class="typecho-option">
-      <label class="typecho-label">API Endpoint</label>
-      <input type="url" id="set-llm-ep" placeholder="https://api.openai.com/v1/chat/completions" />
-      <p class="description">OpenAI 兼容的 Chat Completions 端点</p>
-    </div>
-    <div class="typecho-option">
-      <label class="typecho-label">API Key</label>
-      <input type="password" id="set-llm-key" placeholder="sk-..." />
-    </div>
-    <div class="typecho-option">
-      <label class="typecho-label">Model</label>
-      <input type="text" id="set-llm-model" placeholder="gpt-4o-mini" />
-    </div>
-    <div class="typecho-option">
-      <label class="typecho-label">System Prompt</label>
-      <textarea id="set-llm-prompt" rows="6" placeholder="You are a review bot. Output a single word: approved or spam."></textarea>
-    </div>
-    <p class="description" style="margin-top:10px;color:#888">LLM 调用失败时，将遵循对应的评论默认状态设置（匿名/用户）。</p>
-    <div style="margin-top:16px">
-      <button class="btn" id="test-btn">测试 LLM 连接</button>
+
+    <div id="section-llm" style="display:none">
+      <div class="field">
+        <label class="field-label" data-i18n="llmSkipAdminLabel">Skip Admin LLM Review</label>
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" id="set-llm-skip-admin" checked /><span class="toggle-slider"></span></label>
+          <span class="toggle-label" data-i18n="llmSkipAdminToggle">Skip LLM review for admin comments</span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" data-i18n="llmEndpointLabel">API Endpoint</label>
+        <input type="url" id="set-llm-ep" placeholder="https://api.openai.com/v1/chat/completions" />
+        <p class="field-hint" data-i18n="llmEndpointHint">OpenAI-compatible Chat Completions endpoint</p>
+      </div>
+      <div class="field">
+        <label class="field-label" data-i18n="llmKeyLabel">API Key</label>
+        <input type="text" id="set-llm-key" placeholder="sk-..." />
+      </div>
+      <div class="field">
+        <label class="field-label" data-i18n="llmModelLabel">Model</label>
+        <input type="text" id="set-llm-model" placeholder="gpt-4o-mini" />
+      </div>
+      <div class="field">
+        <label class="field-label" data-i18n="llmPromptLabel">System Prompt</label>
+        <textarea id="set-llm-prompt" rows="5" placeholder="You are a review bot. Output a single word: approved or spam."></textarea>
+      </div>
+      <p class="field-hint" style="margin-top:16px" data-i18n="llmFallbackHint">If the LLM call fails, the corresponding default comment status is used.</p>
+      <div style="margin-top:12px">
+        <button class="btn btn-secondary btn-xs" id="test-btn" data-i18n="testBtn">Test LLM Connection</button>
+      </div>
     </div>
   </div>
 
-  <!-- Actions -->
   <div class="actions">
-    <button class="btn primary" id="save-btn">保存设置</button>
+    <button class="btn btn-primary" id="save-btn" data-i18n="saveBtn">Save Settings</button>
   </div>
+</div>
 </div>
 
 <script>
 (function(){
   var API = ${JSON.stringify(apiBase)};
-  var token = localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN');
+
+  var currentLang = 'zh-CN';
+  var SETTINGS_DATA = null;
+
+  function t(key) { return window.__I18N[currentLang][key] || key; }
+
+  var langBtns = document.querySelectorAll('.lang-toggle button');
+  function applyLang(lang) {
+    currentLang = lang;
+    langBtns.forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-lang') === lang); });
+    document.querySelectorAll('[data-i18n]').forEach(function(el){
+      var k = el.getAttribute('data-i18n');
+      if (k && !el.hasAttribute('data-i18n-html')) el.textContent = t(k);
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(function(el){
+      var k = el.getAttribute('data-i18n-html');
+      if (k) el.innerHTML = t(k);
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(function(el){
+      var k = el.getAttribute('data-i18n-title');
+      if (k) el.title = t(k);
+    });
+    document.querySelectorAll('#version-select option:first-child').forEach(function(o){ o.textContent = t('chooseVersion'); });
+    document.querySelectorAll('#admin-version-select option:first-child').forEach(function(o){ o.textContent = t('chooseVersion'); });
+    // Re-populate form with settings data
+    if (SETTINGS_DATA) populateForm(SETTINGS_DATA);
+  }
+  langBtns.forEach(function(b){ b.addEventListener('click', function(){ applyLang(b.getAttribute('data-lang')); }); });
+
+  var navLang = (navigator.language || 'en').toLowerCase();
+  applyLang(navLang.startsWith('zh') ? 'zh-CN' : 'en');
 
   function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 
@@ -237,6 +407,33 @@ select{height:32px;min-width:200px}
     setTimeout(function(){ el.remove(); }, 3000);
   }
 
+  // --- Auth gate ---
+  var urlToken = new URLSearchParams(location.search).get('token');
+  var token = urlToken || localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN');
+
+  function showUnauthorized() {
+    document.getElementById('auth-loading').innerHTML = '<span style="color:#ef4444">' + t('unauthorized') + '</span>';
+    setTimeout(function(){
+      location.href = '/ui/login?redirect=' + encodeURIComponent('/ui/worker-setting');
+    }, 1200);
+  }
+
+  if (!token) { showUnauthorized(); return; }
+
+  fetch(API + '/api/token', { headers: { Authorization: 'Bearer ' + token } })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.errno !== 0 || !d.data || d.data.type !== 'administrator') {
+        showUnauthorized(); return;
+      }
+      document.getElementById('auth-loading').style.display = 'none';
+      document.getElementById('main-content').classList.remove('hidden');
+      initPage();
+    })
+    .catch(function(){
+      document.getElementById('auth-loading').innerHTML = '<span style="color:#ef4444">' + t('authFailed') + '</span>';
+    });
+
   function api(path, opts) {
     opts = opts || {};
     var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
@@ -244,107 +441,162 @@ select{height:32px;min-width:200px}
     return fetch(API + '/api' + path, Object.assign({}, opts, { headers: headers })).then(function(r){ return r.json(); });
   }
 
-  // Tab switching
-  var tabs = document.querySelectorAll('.typecho-option-tabs a');
-  var panels = document.querySelectorAll('.tab-panel');
-  tabs.forEach(function(tab) {
-    tab.addEventListener('click', function(e) {
-      e.preventDefault();
-      var target = this.getAttribute('data-tab');
-      tabs.forEach(function(t){ t.parentElement.classList.remove('active'); });
-      this.parentElement.classList.add('active');
-      panels.forEach(function(p){ p.style.display = 'none'; });
-      document.getElementById('tab-' + target).style.display = '';
-    });
-  });
-
-  // Fetch npm versions via jsdelivr API
-  function fetchVersions() {
-    var btn = document.getElementById('refresh-versions');
-    var sel = document.getElementById('version-select');
-    btn.disabled = true;
-    btn.innerHTML = '↻<span class="spinner"></span>';
-    fetch('https://data.jsdelivr.com/v1/packages/npm/@waline/client')
-      .then(function(r){ return r.json(); })
-      .then(function(data) {
-        sel.innerHTML = '<option value="">选择版本…</option><option value="latest">latest' +
-          (data.tags && data.tags.latest ? ' (' + esc(data.tags.latest) + ')' : '') + '</option>';
-        if (data.versions) {
-          data.versions.slice(0, 30).forEach(function(v) {
-            var opt = document.createElement('option');
-            opt.value = v.version;
-            opt.textContent = v.version;
-            sel.appendChild(opt);
-          });
-        }
-        toast('版本列表已刷新', true);
-      })
-      .catch(function(e){ toast('获取版本失败: ' + e.message, false); })
-      .finally(function(){ btn.disabled = false; btn.textContent = '↻ 刷新'; });
+  function updateSpamSections(mode) {
+    var showAkismet = mode === 'akismet' || mode === 'mix';
+    var showLlm = mode === 'llm' || mode === 'mix';
+    document.getElementById('section-akismet').style.display = showAkismet ? '' : 'none';
+    document.getElementById('section-llm').style.display = showLlm ? '' : 'none';
   }
 
-  document.getElementById('refresh-versions').addEventListener('click', fetchVersions);
-  document.getElementById('version-select').addEventListener('change', function() {
-    if (this.value) document.getElementById('set-version').value = this.value;
-  });
+  // Select dropdown to match a saved version string (by text or by rebuilding options)
+  function selectVersionInDropdown(sel, version) {
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === version) { sel.selectedIndex = i; return; }
+    }
+    // If not in dropdown (custom version), add it as an option
+    if (version && version !== 'latest') {
+      var opt = document.createElement('option');
+      opt.value = version;
+      opt.textContent = version;
+      sel.appendChild(opt);
+      sel.value = version;
+    }
+  }
 
-  // Load settings
-  api('/settings').then(function(sr) {
-    var s = sr.data || {};
+  // Populate form fields from settings object (does NOT touch version dropdowns)
+  function populateForm(s) {
     document.getElementById('set-version').value = s.waline_client_version || 'v3';
+    document.getElementById('set-admin-version').value = s.waline_admin_version || '';
     document.getElementById('set-comment-status').value = s.comment_default_status || 'approved';
     document.getElementById('set-user-comment-status').value = s.user_comment_default_status || 'approved';
     document.getElementById('set-worker-display').value = s.worker_display || 'admin';
-    // llm_mode: migrate from old llm_enabled if present
-    var mode = s.llm_mode || (s.llm_enabled === '1' ? 'anonymous' : 'off');
-    document.getElementById('set-llm-mode').value = mode;
+    var spamMode = s.spam_mode || ((s.llm_mode && s.llm_mode !== 'off') ? 'llm' : 'off');
+    document.getElementById('set-spam-mode').value = spamMode;
+    updateSpamSections(spamMode);
+    document.getElementById('set-akismet-key').value = s.akismet_key || '';
     document.getElementById('set-llm-skip-admin').checked = s.llm_skip_admin !== '0';
     document.getElementById('set-llm-ep').value = s.llm_endpoint || '';
     document.getElementById('set-llm-key').value = s.llm_api_key || '';
     document.getElementById('set-llm-model').value = s.llm_model || 'gpt-4o-mini';
     document.getElementById('set-llm-prompt').value = s.llm_prompt || 'You are a review bot. Output a single word: approved or spam.';
+  }
 
-    // Match selected version in dropdown
-    var sel = document.getElementById('version-select');
-    var ver = s.waline_client_version || 'v3';
-    for (var i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === ver) { sel.selectedIndex = i; break; }
+  // Reselect dropdowns after versions are loaded (called from fetchVersions success callback)
+  function reselectVersions() {
+    if (!SETTINGS_DATA) return;
+    selectVersionInDropdown(document.getElementById('version-select'), SETTINGS_DATA.waline_client_version || 'v3');
+    selectVersionInDropdown(document.getElementById('admin-version-select'), SETTINGS_DATA.waline_admin_version || '');
+  }
+
+  function initPage() {
+    // Tab switching
+    var tabs = document.querySelectorAll('.tab-btn');
+    var panels = document.querySelectorAll('.tab-panel');
+    tabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        var target = this.getAttribute('data-tab');
+        tabs.forEach(function(t){ t.classList.remove('active'); });
+        this.classList.add('active');
+        panels.forEach(function(p){ p.classList.remove('active'); });
+        document.getElementById('tab-' + target).classList.add('active');
+      });
+    });
+
+    function fetchVersions(packageName, btnId, selId, okMsg) {
+      var btn = document.getElementById(btnId);
+      var sel = document.getElementById(selId);
+      if (!btn || !sel) return;
+      btn.disabled = true;
+      btn.innerHTML = '↻<span class="spinner"></span>';
+      fetch('https://data.jsdelivr.com/v1/packages/npm/' + packageName)
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
+          sel.innerHTML = '<option value="">' + t('chooseVersion') + '</option><option value="latest">latest' +
+            (data.tags && data.tags.latest ? ' (' + esc(data.tags.latest) + ')' : '') + '</option>';
+          if (data.versions) {
+            data.versions.slice(0, 30).forEach(function(v) {
+              var opt = document.createElement('option');
+              opt.value = v.version;
+              opt.textContent = v.version;
+              sel.appendChild(opt);
+            });
+          }
+          reselectVersions();
+          toast(okMsg, true);
+        })
+        .catch(function(e){ toast(t('fetchFailed').replace('{msg}', e.message), false); })
+        .finally(function(){ btn.disabled = false; btn.textContent = t('refreshBtn'); });
     }
-  }).catch(function(){ toast('加载设置失败', false); });
 
-  // Auto-fetch versions on load
-  fetchVersions();
+    document.getElementById('refresh-versions').addEventListener('click', function(){
+      fetchVersions('@waline/client', 'refresh-versions', 'version-select', t('versionsRefreshed'));
+    });
+    document.getElementById('version-select').addEventListener('change', function() {
+      if (this.value) document.getElementById('set-version').value = this.value;
+    });
+    document.getElementById('refresh-admin-versions').addEventListener('click', function(){
+      fetchVersions('@waline/admin', 'refresh-admin-versions', 'admin-version-select', t('adminVersionsRefreshed'));
+    });
+    document.getElementById('admin-version-select').addEventListener('change', function() {
+      if (this.value) document.getElementById('set-admin-version').value = this.value;
+    });
 
-  // Save
-  document.getElementById('save-btn').addEventListener('click', function() {
-    var settings = {
-      waline_client_version: document.getElementById('set-version').value.trim() || 'v3',
-      comment_default_status: document.getElementById('set-comment-status').value,
-      user_comment_default_status: document.getElementById('set-user-comment-status').value,
-      worker_display: document.getElementById('set-worker-display').value,
-      llm_mode: document.getElementById('set-llm-mode').value,
-      llm_skip_admin: document.getElementById('set-llm-skip-admin').checked ? '1' : '0',
-      llm_endpoint: document.getElementById('set-llm-ep').value.trim(),
-      llm_api_key: document.getElementById('set-llm-key').value.trim(),
-      llm_model: document.getElementById('set-llm-model').value.trim(),
-      llm_prompt: document.getElementById('set-llm-prompt').value.trim(),
-    };
-    api('/settings', { method: 'PUT', body: JSON.stringify(settings) }).then(function(r) {
-      toast(r.errno ? (r.errmsg || '保存失败') : '设置已保存！', !r.errno);
-    }).catch(function(){ toast('保存失败', false); });
-  });
+    document.getElementById('set-spam-mode').addEventListener('change', function() {
+      updateSpamSections(this.value);
+    });
 
-  // Test LLM
-  document.getElementById('test-btn').addEventListener('click', function() {
-    var ep = document.getElementById('set-llm-ep').value.trim();
-    var key = document.getElementById('set-llm-key').value.trim();
-    var model = document.getElementById('set-llm-model').value.trim();
-    if (!ep || !key) { toast('请先填写 Endpoint 和 Key', false); return; }
-    fetch(ep, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: [{ role: 'user', content: 'Hello, respond with OK' }], max_tokens: 10 }) })
-    .then(function(r) { toast(r.ok ? 'LLM 连接正常！' : '失败: ' + r.status, r.ok); })
-    .catch(function(e) { toast('错误: ' + e.message, false); });
-  });
+    // Load settings first, then fetch versions (which reselect after fetch completes)
+    api('/settings').then(function(sr) {
+      var s = sr.data || {};
+      SETTINGS_DATA = s;
+      populateForm(s);
+
+      var overrides = sr.env_overrides || [];
+      var overrideDisabledFields = ['akismet_key','spam_mode','llm_skip_admin','llm_endpoint','llm_api_key','llm_model','llm_prompt'];
+      overrideDisabledFields.forEach(function(k) {
+        if (overrides.indexOf(k) !== -1) {
+          var el = document.getElementById('set-' + k) ||
+                   document.getElementById('set-' + k.replace(/_/g, '-'));
+          if (el) { el.disabled = true; el.title = t('envOverride'); }
+        }
+      });
+
+      // Now that SETTINGS_DATA is populated, fetch versions (will reselect on complete)
+      fetchVersions('@waline/client', 'refresh-versions', 'version-select', t('versionsRefreshed'));
+      fetchVersions('@waline/admin', 'refresh-admin-versions', 'admin-version-select', t('adminVersionsRefreshed'));
+    }).catch(function(){ toast(t('loadFailed'), false); });
+
+    document.getElementById('save-btn').addEventListener('click', function() {
+      var settings = {
+        waline_client_version: document.getElementById('set-version').value.trim() || 'v3',
+        waline_admin_version: document.getElementById('set-admin-version').value.trim() || '',
+        comment_default_status: document.getElementById('set-comment-status').value,
+        user_comment_default_status: document.getElementById('set-user-comment-status').value,
+        worker_display: document.getElementById('set-worker-display').value,
+        spam_mode: document.getElementById('set-spam-mode').value,
+        akismet_key: document.getElementById('set-akismet-key').value.trim(),
+        llm_skip_admin: document.getElementById('set-llm-skip-admin').checked ? '1' : '0',
+        llm_endpoint: document.getElementById('set-llm-ep').value.trim(),
+        llm_api_key: document.getElementById('set-llm-key').value.trim(),
+        llm_model: document.getElementById('set-llm-model').value.trim(),
+        llm_prompt: document.getElementById('set-llm-prompt').value.trim(),
+      };
+      api('/settings', { method: 'PUT', body: JSON.stringify(settings) }).then(function(r) {
+        toast(r.errno ? (r.errmsg || t('saveFailed')) : t('saveOk'), !r.errno);
+      }).catch(function(){ toast(t('saveFailed'), false); });
+    });
+
+    document.getElementById('test-btn').addEventListener('click', function() {
+      var ep = document.getElementById('set-llm-ep').value.trim();
+      var key = document.getElementById('set-llm-key').value.trim();
+      var model = document.getElementById('set-llm-model').value.trim();
+      if (!ep || !key) { toast(t('fetchFailed').replace('{msg}','Endpoint and Key required'), false); return; }
+      fetch(ep, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key },
+        body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: [{ role:'user', content:'Hello, respond with OK' }], max_tokens:10 }) })
+      .then(function(r) { toast(r.ok ? t('llmOk') : t('llmFail').replace('{code}',r.status), r.ok); })
+      .catch(function(e) { toast(t('llmError').replace('{msg}',e.message), false); });
+    });
+  }
 })();
 </script>
 </body>

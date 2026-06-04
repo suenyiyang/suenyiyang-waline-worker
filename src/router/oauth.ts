@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../env.js';
-import { signJwt } from '../middleware/auth.js';
+import { signJwt, verifyJwt } from '../middleware/auth.js';
 
 export const oauthRoutes = new Hono<{
   Bindings: Env;
@@ -64,8 +64,44 @@ oauthRoutes.get('/', async (c) => {
       return c.redirect(`${redirect}?error=oauth_no_id`);
     }
 
-    // Try to find existing user by social link
     const socialField = getSocialField(type);
+    const jwtSecret = c.env.JWT_SECRET;
+
+    // Account-linking flow: state carries the logged-in user's JWT
+    if (state && jwtSecret && socialField) {
+      try {
+        const payload = await verifyJwt(state, jwtSecret);
+        if (payload?.id) {
+          const linkTarget = await c.env.DB.prepare(
+            'SELECT * FROM wl_Users WHERE id = ?',
+          ).bind(payload.id).first();
+
+          if (linkTarget) {
+            // Check if this social ID is already bound to a different account
+            const conflict = await c.env.DB.prepare(
+              `SELECT id FROM wl_Users WHERE ${socialField} = ? AND id != ?`,
+            ).bind(socialId, payload.id).first();
+
+            if (conflict) {
+              return c.redirect(`${redirect}?error=oauth_already_bound`);
+            }
+
+            await c.env.DB.prepare(
+              `UPDATE wl_Users SET ${socialField} = ?, updatedAt = datetime('now') WHERE id = ?`,
+            ).bind(socialId, payload.id).run();
+
+            const token = await signJwt({ id: payload.id }, jwtSecret);
+            const sep = redirect.includes('?') ? '&' : '?';
+            return c.redirect(`${redirect}${sep}token=${encodeURIComponent(token)}`);
+          }
+        }
+      } catch {
+        // state is not a valid JWT — fall through to normal login flow
+      }
+    }
+
+    // Normal OAuth login: find existing user by social link or email
+    // Try to find existing user by social link
     let user: Record<string, unknown> | null = null;
 
     if (socialField) {
@@ -123,7 +159,6 @@ oauthRoutes.get('/', async (c) => {
     }
 
     // Issue JWT
-    const jwtSecret = c.env.JWT_SECRET;
     if (!jwtSecret) {
       return c.redirect(`${redirect}?error=server_error`);
     }
