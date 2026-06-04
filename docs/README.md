@@ -1,5 +1,7 @@
 # Waline on Worker 详细文档
 
+For international audience: [English Documentation](README_EN.md)
+
 ## 快速开始
 
 ### 前提条件
