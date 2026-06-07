@@ -14,6 +14,10 @@
     "jsxImportSource": "hono/jsx",
     "lib": ["ESNext"],
     "types": ["@cloudflare/workers-types"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@tests/*": ["./tests/*"]
+    }
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "waline"],

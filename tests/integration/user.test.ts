@@ -1,89 +1,145 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { env, SELF } from 'cloudflare:test';
-import { setupDB } from '../helpers/setup.js';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { env } from 'cloudflare:test';
 
-const BASE = 'http://localhost';
+import { loginAs } from '@tests/helpers/auth.js';
+import { createUser } from '@tests/helpers/factories.js';
+import { api, json } from '@tests/helpers/request.js';
+import { resetDB, setupDB } from '@tests/helpers/setup.js';
 
-beforeAll(async () => {
-  await setupDB((env as any).DB);
+type TestEnv = { DB: D1Database };
+
+let db: D1Database;
+
+beforeAll(() => {
+  db = (env as unknown as TestEnv).DB;
 });
 
 describe('POST /api/user — registration', () => {
-  it('registers the first user and assigns administrator type', async () => {
-    const res = await SELF.fetch(`${BASE}/api/user`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        display_name: 'Admin User',
-        email: 'admin@example.com',
-        password: 'adminpass123',
-      }),
+  beforeEach(async () => { await resetDB(db); });
+
+  it('first registered user is assigned administrator type', async () => {
+    const res = await api.post('/api/user', {
+      body: { display_name: 'Admin', email: 'admin@example.com', password: 'adminpass' },
     });
     expect(res.status).toBe(201);
-    const data = await res.json() as any;
+    const data = await json(res);
     expect(data.errno).toBe(0);
     expect(data.data.type).toBe('administrator');
-    expect(data.data.display_name).toBe('Admin User');
   });
 
-  it('assigns guest type to subsequent users', async () => {
-    const res = await SELF.fetch(`${BASE}/api/user`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        display_name: 'Alice',
-        email: 'alice@example.com',
-        password: 'alicepass123',
-      }),
-    });
-    expect(res.status).toBe(201);
-    const data = await res.json() as any;
+  it('subsequent users are assigned guest type', async () => {
+    await createUser(db, { email: 'first@example.com' });
+    const data = await json(await api.post('/api/user', {
+      body: { email: 'second@example.com', password: 'pass' },
+    }));
     expect(data.data.type).toBe('guest');
   });
 
   it('rejects duplicate email with 409', async () => {
-    const res = await SELF.fetch(`${BASE}/api/user`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: 'alice@example.com',
-        password: 'anotherpass',
-      }),
+    await createUser(db, { email: 'taken@example.com' });
+    const res = await api.post('/api/user', {
+      body: { email: 'taken@example.com', password: 'pass' },
     });
     expect(res.status).toBe(409);
-    const data = await res.json() as any;
-    expect(data.errno).toBe(1);
+    expect((await json(res)).errno).toBe(1);
   });
 
-  it('requires email and password', async () => {
-    const res = await SELF.fetch(`${BASE}/api/user`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: 'NoEmail' }),
-    });
-    expect(res.status).toBe(400);
+  it('returns 400 when email or password is missing', async () => {
+    expect((await api.post('/api/user', {
+      body: { display_name: 'NoEmail' },
+    })).status).toBe(400);
   });
 
-  it('uses email prefix as display_name when not provided', async () => {
-    const res = await SELF.fetch(`${BASE}/api/user`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: 'bob@example.com',
-        password: 'bobpass123',
-      }),
-    });
-    const data = await res.json() as any;
+  it('defaults display_name to email prefix when omitted', async () => {
+    const data = await json(await api.post('/api/user', {
+      body: { email: 'bob@example.com', password: 'pass' },
+    }));
     expect(data.data.display_name).toBe('bob');
   });
 });
 
-describe('GET /api/user — public list', () => {
-  it('returns top commenters list', async () => {
-    const res = await SELF.fetch(`${BASE}/api/user`);
+describe('GET /api/user', () => {
+  beforeAll(async () => {
+    await setupDB(db);
+    await createUser(db, { email: 'public@example.com', type: 'guest' });
+  });
+
+  it('returns public top-commenters list for anonymous requests', async () => {
+    const res = await api.get('/api/user');
     expect(res.status).toBe(200);
-    const data = await res.json() as any;
+    const data = await json(res);
     expect(data.errno).toBe(0);
     expect(Array.isArray(data.data)).toBe(true);
+  });
+});
+
+describe('PUT /api/user/:id — profile update', () => {
+  let adminToken: string;
+  let guestToken: string;
+  let adminId: number;
+  let guestId: number;
+
+  beforeEach(async () => {
+    await resetDB(db);
+    const admin = await createUser(db, { email: 'admin@example.com', password: 'pass', type: 'administrator' });
+    const guest = await createUser(db, { email: 'guest@example.com', password: 'pass', type: 'guest' });
+    adminId = admin.id;
+    guestId = guest.id;
+    adminToken = await loginAs('admin@example.com', 'pass');
+    guestToken = await loginAs('guest@example.com', 'pass');
+  });
+
+  it('user can update their own display_name', async () => {
+    const res = await api.put(`/api/user/${guestId}`, {
+      token: guestToken,
+      body: { display_name: 'New Name' },
+    });
+    expect(res.status).toBe(200);
+    expect((await json(res)).data.display_name).toBe('New Name');
+  });
+
+  it('user cannot update another user profile (403)', async () => {
+    expect((await api.put(`/api/user/${adminId}`, {
+      token: guestToken,
+      body: { display_name: 'Hacked' },
+    })).status).toBe(403);
+  });
+
+  it('admin can update any user profile', async () => {
+    const res = await api.put(`/api/user/${guestId}`, {
+      token: adminToken,
+      body: { display_name: 'Admin-set Name' },
+    });
+    expect(res.status).toBe(200);
+    expect((await json(res)).data.display_name).toBe('Admin-set Name');
+  });
+});
+
+describe('DELETE /api/user/:id', () => {
+  let adminToken: string;
+  let guestToken: string;
+  let guestId: number;
+
+  beforeEach(async () => {
+    await resetDB(db);
+    await createUser(db, { email: 'admin@example.com', password: 'pass', type: 'administrator' });
+    const guest = await createUser(db, { email: 'guest@example.com', password: 'pass', type: 'guest' });
+    guestId = guest.id;
+    adminToken = await loginAs('admin@example.com', 'pass');
+    guestToken = await loginAs('guest@example.com', 'pass');
+  });
+
+  it('non-admin delete attempt returns 403', async () => {
+    expect((await api.delete(`/api/user/${guestId}`, { token: guestToken })).status).toBe(403);
+  });
+
+  it('admin can delete a guest user', async () => {
+    const res = await api.delete(`/api/user/${guestId}`, { token: adminToken });
+    expect(res.status).toBe(200);
+    expect((await json(res)).errno).toBe(0);
+  });
+
+  it('deleting non-existent user returns 404', async () => {
+    expect((await api.delete('/api/user/99999', { token: adminToken })).status).toBe(404);
   });
 });
