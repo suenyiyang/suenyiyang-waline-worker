@@ -3,7 +3,7 @@
  * Returns the exact original Waline server root page
  */
 export function getWalinePage(): string {
-  return `<!DOCTYPE html>
+	return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">

@@ -4,47 +4,52 @@
  * Menu injection uses client-side API check (server-side auth validation) so it
  * works on first login without page refresh
  */
-import type { Env } from '../env.js';
-import { getSettings } from '../router/settings.js';
+import type { Env } from "../env.js";
+import { getSettings } from "../router/settings.js";
 
-export async function getAdminPage(env: Env, requestUrl: string): Promise<string> {
-  const settings = await getSettings(env.DB, [
-    'worker_display', 'waline_admin_version',
-  ]).catch(() => ({} as Record<string, string>));
-  const workerDisplay = settings.worker_display || 'admin';
-  const adminVersion = (settings.waline_admin_version || 'latest').trim();
-  const url = new URL(requestUrl);
-  const serverURL = `${url.origin}/api/`;
-  const siteName = env.SITE_NAME || '';
-  const siteUrl = env.SITE_URL || '';
-  const recaptchaV3Key = env.RECAPTCHA_V3_KEY || '';
-  const turnstileKey = env.TURNSTILE_KEY || '';
-  const origin = url.origin;
+export async function getAdminPage(
+	env: Env,
+	requestUrl: string,
+): Promise<string> {
+	const settings = await getSettings(env.DB, [
+		"worker_display",
+		"waline_admin_version",
+	]).catch(() => ({}) as Record<string, string>);
+	const workerDisplay = settings.worker_display || "admin";
+	const adminVersion = (settings.waline_admin_version || "latest").trim();
+	const url = new URL(requestUrl);
+	const serverURL = `${url.origin}/api/`;
+	const siteName = env.SITE_NAME || "";
+	const siteUrl = env.SITE_URL || "";
+	const recaptchaV3Key = env.RECAPTCHA_V3_KEY || "";
+	const turnstileKey = env.TURNSTILE_KEY || "";
+	const origin = url.origin;
 
-  const showWorker = workerDisplay !== 'disabled';
-  const showAlways = workerDisplay === 'always';
+	const showWorker = workerDisplay !== "disabled";
+	const showAlways = workerDisplay === "always";
 
-  // Build unpkg script src. Examples:
-  //   latest        -> //unpkg.com/@waline/admin
-  //   0.34.1        -> //unpkg.com/@waline/admin@0.34.1
-  //   v0.34.1       -> //unpkg.com/@waline/admin@v0.34.1
-  //   @0.34.1       -> //unpkg.com/@waline/admin@0.34.1 (strip leading @)
-  //   npm:@waline/admin@latest  -> //unpkg.com/@waline/admin@latest
-  const cleanVersion = adminVersion
-    .replace(/^npm:@waline\/admin@?/, '')
-    .replace(/^@/, '')
-    .trim();
-  const adminScript = cleanVersion && cleanVersion !== 'latest'
-    ? `//unpkg.com/@waline/admin@${cleanVersion}`
-    : '//unpkg.com/@waline/admin';
+	// Build unpkg script src. Examples:
+	//   latest        -> //unpkg.com/@waline/admin
+	//   0.34.1        -> //unpkg.com/@waline/admin@0.34.1
+	//   v0.34.1       -> //unpkg.com/@waline/admin@v0.34.1
+	//   @0.34.1       -> //unpkg.com/@waline/admin@0.34.1 (strip leading @)
+	//   npm:@waline/admin@latest  -> //unpkg.com/@waline/admin@latest
+	const cleanVersion = adminVersion
+		.replace(/^npm:@waline\/admin@?/, "")
+		.replace(/^@/, "")
+		.trim();
+	const adminScript =
+		cleanVersion && cleanVersion !== "latest"
+			? `//unpkg.com/@waline/admin@${cleanVersion}`
+			: "//unpkg.com/@waline/admin";
 
-  return `<!doctype html>
+	return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>Waline Management System</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-${showWorker ? `  <style>.wk-badge{display:inline-block;margin-right:8px;padding:1px 8px;background:#f97316;color:#fff;font-size:11px;border-radius:10px;vertical-align:middle;font-weight:normal;letter-spacing:.5px;line-height:18px}</style>` : ''}
+${showWorker ? `  <style>.wk-badge{display:inline-block;margin-right:8px;padding:1px 8px;background:#f97316;color:#fff;font-size:11px;border-radius:10px;vertical-align:middle;font-weight:normal;letter-spacing:.5px;line-height:18px}</style>` : ""}
 </head>
 <body>
   <script>
@@ -73,7 +78,9 @@ ${showWorker ? `  <style>.wk-badge{display:inline-block;margin-right:8px;padding
   })();
   </script>
   <script src="${adminScript}"></script>
-${showWorker ? `  <script>
+${
+	showWorker
+		? `  <script>
   (function(){
     var ORIGIN = ${JSON.stringify(origin)};
     var ALWAYS = ${JSON.stringify(showAlways)};
@@ -150,7 +157,9 @@ ${showWorker ? `  <script>
     var iv = setInterval(function(){ tryInject(); if (menuDone) clearInterval(iv); }, 2000);
     setTimeout(tryInject, 500);
   })();
-  </script>` : ''}
+  </script>`
+		: ""
+}
 </body>
 </html>`;
 }
