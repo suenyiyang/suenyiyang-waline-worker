@@ -25,9 +25,15 @@
     "bcryptjs": "^3.0.3",
     "hono": "^4.12.9"
   },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.13",
     "@cloudflare/workers-types": "^4.20260604.1",
     "typescript": "^6.0.2",
+    "vitest": "^4.1.8",
     "wrangler": "^4.97.0"
   }
 }
