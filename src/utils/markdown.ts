@@ -3,6 +3,8 @@
  * Handles common constructs + XSS sanitization
  */
 
+const SAFE_HREF = /^(https?:|mailto:|#|\/)/i;
+
 export function renderMarkdown(text: string): string {
 	if (!text) return "";
 
@@ -21,13 +23,13 @@ export function renderMarkdown(text: string): string {
 
 	// Images ![alt](url)
 	html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => {
-		if (/^javascript:/i.test(src.trim())) return "";
+		if (!SAFE_HREF.test(src.trim())) return "";
 		return `<img src="${src}" alt="${alt}" loading="lazy" />`;
 	});
 
 	// Links [text](url)
 	html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
-		if (/^javascript:/i.test(url.trim())) return text;
+		if (!SAFE_HREF.test(url.trim())) return text;
 		return `<a href="${url}" target="_blank" rel="ugc nofollow noreferrer noopener">${text}</a>`;
 	});
 
