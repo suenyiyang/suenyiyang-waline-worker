@@ -5,10 +5,10 @@
  */
 
 export function getCustomSettingsPage(requestUrl: string): string {
-  const url = new URL(requestUrl);
-  const apiBase = url.origin;
+	const url = new URL(requestUrl);
+	const apiBase = url.origin;
 
-  return `<!doctype html>
+	return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
