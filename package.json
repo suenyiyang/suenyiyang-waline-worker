@@ -1,7 +1,7 @@
 {
-	"name": "waline-on-worker",
+	"name": "suenyiyang-waline-worker",
 	"version": "1.0.0",
-	"description": "Waline-compatible comment system backend running on Cloudflare Workers with D1",
+	"description": "Waline-compatible comment system backend for suenyiyang.com on Cloudflare Workers with D1",
 	"type": "module",
 	"scripts": {
 		"dev": "wrangler dev",
@@ -14,7 +14,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/wuyilingwei/Waline_On_Worker.git"
+		"url": "git+https://github.com/suenyiyang/suenyiyang-waline-worker.git"
 	},
 	"keywords": [
 		"waline",

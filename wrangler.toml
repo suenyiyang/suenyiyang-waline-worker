@@ -1,0 +1,15 @@
+#:schema node_modules/wrangler/config-schema.json
+
+name = "suenyiyang-waline"
+main = "src/index.ts"
+compatibility_date = "2026-06-10"
+
+[vars]
+SITE_NAME = "suenyiyang.com"
+SITE_URL = "https://suenyiyang.com"
+SECURE_DOMAINS = "suenyiyang.com,waline.suenyiyang.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "waline-db"
+database_id = "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID"
