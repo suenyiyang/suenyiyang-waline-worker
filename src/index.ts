@@ -21,15 +21,32 @@ app.use(
 	cors({
 		origin: (origin, c) => {
 			const secureDomains = c.env.SECURE_DOMAINS;
-			if (!secureDomains) return origin;
-			const allowed = secureDomains.split(",").map((d: string) => d.trim());
+			if (!origin || !secureDomains) return origin;
+
+			const getHostname = (value: string) => {
+				try {
+					return new URL(value.includes("://") ? value : `https://${value}`)
+						.hostname;
+				} catch {
+					return value;
+				}
+			};
+
+			const originHost = getHostname(origin);
+			const allowed = secureDomains
+				.split(",")
+				.map((d: string) => getHostname(d.trim()))
+				.filter(Boolean);
+
 			if (
-				allowed.some((d: string) => origin === d || origin.endsWith(`.${d}`))
+				allowed.some(
+					(d: string) => originHost === d || originHost.endsWith(`.${d}`),
+				)
 			) {
 				return origin;
 			}
 			return "";
-		},
+		}, 
 		allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 		allowHeaders: ["Content-Type", "Authorization"],
 		exposeHeaders: ["Content-Length", "x-waline-version"],
