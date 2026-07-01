@@ -252,6 +252,28 @@ describe("POST /api/comment — create comment", () => {
 			url: "/page",
 			sticky: expect.any(Boolean),
 		});
+		expect(data).not.toHaveProperty("pid");
+		expect(data).not.toHaveProperty("rid");
+	});
+
+	it("reply response includes pid and rid for Waline threading", async () => {
+		const parent = await createComment(db, { url: "/page" });
+		const data = (
+			await json(
+				await api.post("/api/comment", {
+					body: {
+						nick: "Bob",
+						mail: "bob@example.com",
+						comment: "Reply",
+						url: "/page",
+						pid: parent.id,
+						rid: parent.id,
+					},
+				}),
+			)
+		).data;
+		expect(data.pid).toBe(parent.id);
+		expect(data.rid).toBe(parent.id);
 	});
 
 	it("authenticated user post uses their display_name", async () => {

@@ -824,13 +824,23 @@ async function formatComment(
 		status: row.status,
 		like: row.like ?? 0,
 		url: row.url,
-		pid: row.pid,
-		rid: row.rid,
 		sticky: Boolean(row.sticky),
 		user_id: row.user_id,
 		type: user?.type || (row.user_id ? "guest" : ""),
 		label: user?.label || "",
 	};
+
+	// Waline client v3 determines whether a submitted comment is a reply with
+	// `"rid" in comment`. If root comments include `rid: null` / `pid: null`, the
+	// client treats them as replies to a non-existent root and skips inserting
+	// them into the in-memory list after POST. Keep root comments free of pid/rid
+	// fields, while preserving those fields for actual replies.
+	if (row.pid !== null && row.pid !== undefined) {
+		result.pid = row.pid;
+	}
+	if (row.rid !== null && row.rid !== undefined) {
+		result.rid = row.rid;
+	}
 
 	if (isAdmin) {
 		result.mail = mail;
