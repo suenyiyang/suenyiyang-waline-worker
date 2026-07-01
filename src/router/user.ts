@@ -158,66 +158,28 @@ userRoutes.post("/", async (c) => {
 });
 
 /**
- * PUT /api/user/:id - Update user profile
+ * PUT /api/user - Update current user profile
+ *
+ * @waline/admin calls this endpoint without an id when editing the current
+ * profile/password. Keep it as a compatibility alias for PUT /api/user/:id.
  */
-userRoutes.put("/:id", async (c) => {
-	const id = c.req.param("id");
+userRoutes.put("/", async (c) => {
 	const userInfo = c.get("userInfo");
-
 	if (!userInfo) {
 		return c.json({ errno: 1, errmsg: "Unauthorized" }, 401);
 	}
 
-	const isAdmin = userInfo.type === "administrator";
-	const isSelf = userInfo.objectId === parseInt(id, 10);
-
-	if (!isAdmin && !isSelf) {
-		return c.json({ errno: 1, errmsg: "Forbidden" }, 403);
-	}
-
 	const body = await c.req.json();
-	const updates: string[] = [];
-	const values: unknown[] = [];
+	const id = String(body.objectId || body.id || userInfo.objectId);
+	return updateUser(c, id, body);
+});
 
-	const allowedFields = ["display_name", "url", "avatar", "label"];
-	for (const field of allowedFields) {
-		if (body[field] !== undefined) {
-			updates.push(`${field} = ?`);
-			values.push(body[field]);
-		}
-	}
-
-	if (body.password) {
-		updates.push("password = ?");
-		values.push(await hashPassword(body.password));
-	}
-
-	// Admin-only fields
-	if (isAdmin && body.type !== undefined) {
-		updates.push("type = ?");
-		values.push(body.type);
-	}
-
-	if (updates.length === 0) {
-		return c.json({ errno: 1, errmsg: "No fields to update" }, 400);
-	}
-
-	updates.push("updatedAt = datetime('now')");
-	values.push(id);
-
-	await c.env.DB.prepare(
-		`UPDATE wl_Users SET ${updates.join(", ")} WHERE id = ?`,
-	)
-		.bind(...values)
-		.run();
-
-	const updated = await c.env.DB.prepare(
-		"SELECT id, display_name, email, type, url, avatar, label FROM wl_Users WHERE id = ?",
-	)
-		.bind(id)
-		.first();
-
-	return c.json({ errno: 0, errmsg: "", data: await formatUser(updated) });
+/**
+ * PUT /api/user/:id - Update user profile
+ */
+userRoutes.put("/:id", async (c) => {
+	const body = await c.req.json();
+	return updateUser(c, c.req.param("id"), body);
 });
 
 /**
@@ -259,6 +221,75 @@ userRoutes.delete("/:id", async (c) => {
 
 	return c.json({ errno: 0, errmsg: "" });
 });
+
+async function updateUser(c: any, id: string, body: any) {
+	const userInfo = c.get("userInfo");
+
+	if (!userInfo) {
+		return c.json({ errno: 1, errmsg: "Unauthorized" }, 401);
+	}
+
+	const targetId = parseInt(id, 10);
+	const isAdmin = userInfo.type === "administrator";
+	const isSelf = userInfo.objectId === targetId;
+
+	if (!targetId || (!isAdmin && !isSelf)) {
+		return c.json({ errno: 1, errmsg: "Forbidden" }, 403);
+	}
+
+	const updates: string[] = [];
+	const values: unknown[] = [];
+
+	const fieldMap: Record<string, string> = {
+		display_name: "display_name",
+		displayName: "display_name",
+		nick: "display_name",
+		url: "url",
+		link: "url",
+		avatar: "avatar",
+		label: "label",
+	};
+
+	for (const [inputField, column] of Object.entries(fieldMap)) {
+		if (body[inputField] !== undefined) {
+			updates.push(`${column} = ?`);
+			values.push(body[inputField]);
+		}
+	}
+
+	const newPassword = body.password || body.newPassword;
+	if (newPassword) {
+		updates.push("password = ?");
+		values.push(await hashPassword(newPassword));
+	}
+
+	// Admin-only fields
+	if (isAdmin && body.type !== undefined) {
+		updates.push("type = ?");
+		values.push(body.type);
+	}
+
+	if (updates.length === 0) {
+		return c.json({ errno: 1, errmsg: "No fields to update" }, 400);
+	}
+
+	updates.push("updatedAt = datetime('now')");
+	values.push(targetId);
+
+	await c.env.DB.prepare(
+		`UPDATE wl_Users SET ${updates.join(", ")} WHERE id = ?`,
+	)
+		.bind(...values)
+		.run();
+
+	const updated = await c.env.DB.prepare(
+		"SELECT id, display_name, email, type, url, avatar, label FROM wl_Users WHERE id = ?",
+	)
+		.bind(targetId)
+		.first();
+
+	return c.json({ errno: 0, errmsg: "", data: await formatUser(updated) });
+}
 
 async function formatUser(row: any) {
 	if (!row) return null;
