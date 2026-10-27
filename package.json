@@ -3,12 +3,15 @@
 	"version": "1.0.0",
 	"description": "Waline-compatible comment system backend for suenyiyang.com on Cloudflare Workers with D1",
 	"type": "module",
+	"packageManager": "pnpm@10.34.6",
 	"scripts": {
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy",
 		"db:init": "wrangler d1 execute waline-db --remote --file=./schema.sql",
 		"db:init:local": "wrangler d1 execute waline-db --file=./schema.sql --local",
+    "build:overture": "node scripts/build-overture.mjs --version 1.1.2 --tag v1.1.2",
 		"test": "vitest run",
+		"test:overture": "pnpm build:overture && node --test test/overture-package.check.mjs && node test/overture/runtime-smoke.mjs dist/overture/overture.json",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage --coverage.provider=istanbul"
 	},
@@ -22,7 +25,7 @@
 		"comment-system",
 		"d1"
 	],
-	"author": "wuyilingwei",
+	"author": "Siyu Lei",
 	"license": "MIT",
 	"dependencies": {
 		"bcryptjs": "^3.0.3",

@@ -30,13 +30,6 @@ A [Waline](https://waline.js.org/) comment system backend implementation running
 | **Framework**      | [Hono](https://hono.dev/)                                             |
 | **Language**       | TypeScript                                                             |
 
-> [!CAUTION]
-> **AI-Assisted Development Disclaimer**
->
-> The code implementation of this project was primarily driven by AI. Although manual code reviews and testing have been performed as much as possible, **complete parity** with all behaviors of the original Waline Server **cannot be guaranteed**.
->
-> Authentication and edge cases have been tested as thoroughly as possible, but **please assess the risks yourself before using it in a production environment.** Issues and Pull Requests are highly welcome to help improve the project.
-
 ## Feature Status
 
 - [x] Comment CRUD (Threading, counters, recent comments)
@@ -53,7 +46,7 @@ A [Waline](https://waline.js.org/) comment system backend implementation running
 - [x] RSS subscription
 - [x] Data import/export (Compatible with the @waline/admin migration panel)
 - [x] **Akismet anti-spam** (four modes: Off / Akismet / LLM / Mix)
-- [x] LLM comment moderation (Embedded [waline-plugin-llm-reviewer-next](https://github.com/wuyilingwei/waline-plugin-llm-reviewer-next) design, supporting natural language safety policies)
+- [x] LLM comment moderation (Embedded [waline-plugin-llm-reviewer-next](https://github.com/lsy-404/waline-plugin-llm-reviewer-next) design, supporting natural language safety policies)
 - [x] Comment default status control (Independent settings for anonymous and logged-in users)
 - [x] Admin dashboard (@waline/admin CDN + Worker settings page)
 - [x] IP rate limiting (IPQPS) can be directly configured via Cloudflare security rules
@@ -91,17 +84,28 @@ The Akismet API key supports **two placement methods** — the environment varia
 
 This dual-placement design means you can manage the key however fits your workflow without changing code.
 
-## Quick Start
+## Recommended deployment: Overture
+
+Deploy directly through the [Overture deployment page](https://overture.voidcarve.com/?src=lsy-404/Waline_On_Worker) without installing Node.js or Wrangler locally. Select a release from this repository and Overture creates or reuses the D1 database, applies the schema, deploys the Worker, and generates `JWT_SECRET` on the first deployment. A custom domain is optional: leave it empty to use the Worker’s `workers.dev` address, or provide one to attach it.
+
+Overture can offer the following Cloudflare authentication methods:
+
+- **OAuth**: when the Overture instance has enabled and configured OAuth, authorize Workers Scripts, D1, and the route and zone permissions needed for an optional custom domain with Cloudflare.
+- **Account API Token**: create and paste a token using Overture's prefilled permission template. The token is used only for this deployment and is never stored as an application credential.
+
+Regular updates preserve comment data and the existing `JWT_SECRET`. A full rebuild also preserves D1 data but generates a new `JWT_SECRET`, invalidating current login sessions. Leaving the CORS origins field empty during an update preserves the current `SECURE_DOMAINS`; clear or change it in the Cloudflare Dashboard Worker variables. To retain the ability to provide a custom domain, the OAuth and API Token permission template still lists route and zone access even when you leave the domain empty. Read and accept the package’s complete English and Chinese terms before deployment; they explain account charges, credential handling, and data responsibilities.
+
+## Manual deployment
 
 ```bash
-git clone https://github.com/wuyilingwei/Waline_On_Worker.git
+git clone https://github.com/lsy-404/Waline_On_Worker.git
 cd Waline_On_Worker
 pnpm install
 
 # Create D1 database and edit wrangler.toml
-npx wrangler d1 create waline-db
+pnpm exec wrangler d1 create waline-db
 pnpm run db:init
-npx wrangler secret put JWT_SECRET
+pnpm exec wrangler secret put JWT_SECRET
 pnpm run deploy
 ```
 
