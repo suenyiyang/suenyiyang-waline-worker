@@ -10,6 +10,8 @@ SITE_URL = "https://suenyiyang.com"
 SECURE_DOMAINS = "suenyiyang.com,waline.suenyiyang.com"
 # Keep the browser / OS pills out of public comments.
 DISABLE_USERAGENT = "true"
+# Keep the location pill out of public comments; admins still see region data.
+DISABLE_REGION = "true"
 
 [[routes]]
 pattern = "waline.suenyiyang.com"
