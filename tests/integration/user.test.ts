@@ -141,6 +141,45 @@ describe("PUT /api/user/:id — profile update", () => {
 	});
 });
 
+// ─── PUT /api/user ───────────────────────────────────────────────────────────
+
+describe("PUT /api/user — current user profile update", () => {
+	let guestToken: string;
+	let guestId: number;
+
+	beforeEach(async () => {
+		const guest = await createUser(db, {
+			email: "guest@example.com",
+			password: "pass",
+			type: "guest",
+		});
+		guestId = guest.id;
+		guestToken = await loginAs("guest@example.com", "pass");
+	});
+
+	// @waline/admin edits its own profile/password without an id in the URL.
+	it("updates the caller without an id in the path", async () => {
+		const res = await api.put("/api/user", {
+			token: guestToken,
+			body: { display_name: "Self-served Name" },
+		});
+		expect(res.status).toBe(200);
+		const data = (await json(res)).data;
+		expect(data.objectId).toBe(guestId);
+		expect(data.display_name).toBe("Self-served Name");
+	});
+
+	it("rejects an anonymous caller (401)", async () => {
+		expect(
+			(
+				await api.put("/api/user", {
+					body: { display_name: "No Token" },
+				})
+			).status,
+		).toBe(401);
+	});
+});
+
 // ─── DELETE /api/user/:id ─────────────────────────────────────────────────────
 
 describe("DELETE /api/user/:id", () => {
