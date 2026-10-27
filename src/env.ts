@@ -8,6 +8,7 @@ export interface Env {
 	SITE_URL?: string;
 	SECURE_DOMAINS?: string;
 	DISABLE_USERAGENT?: string;
+	HIDE_AGENT_VERSION?: string;
 	DISABLE_AGENT?: string;
 	DISABLE_REGION?: string;
 	AVATAR_PROXY?: string;

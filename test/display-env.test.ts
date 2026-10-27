@@ -153,6 +153,25 @@ describe("display flags through Workers/D1 responses", () => {
 		expect(explicit.data.data[0].os).toBe("Windows 10");
 	});
 
+	it("drops agent versions when HIDE_AGENT_VERSION is enabled", async () => {
+		await seedThread();
+		const body = await request("/api/comment?path=/page", {
+			HIDE_AGENT_VERSION: "true",
+		});
+		const comment = body.data.data[0];
+		expect(comment).toMatchObject({ browser: "Chrome", os: "Windows" });
+		expect(comment).not.toHaveProperty("browser", "Chrome 126.0.0.0");
+	});
+
+	it("keeps DISABLE_AGENT winning over HIDE_AGENT_VERSION", async () => {
+		await seedThread();
+		const body = await request("/api/comment?path=/page", {
+			DISABLE_AGENT: "true",
+			HIDE_AGENT_VERSION: "true",
+		});
+		expectHidden(body.data.data[0]);
+	});
+
 	it.each([
 		undefined,
 		"false",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseUA } from "@/utils/ua.js";
+import { parseUA, stripVersion } from "@/utils/ua.js";
 
 describe("parseUA", () => {
 	it("parses Chrome on Windows 10", () => {
@@ -52,5 +52,27 @@ describe("parseUA", () => {
 
 	it("returns empty strings for empty UA", () => {
 		expect(parseUA("")).toEqual({ browser: "", os: "" });
+	});
+});
+
+describe("stripVersion", () => {
+	it("keeps the browser name and drops the version", () => {
+		expect(stripVersion("Chrome 156.0.0.0")).toBe("Chrome");
+		expect(stripVersion("Firefox 121.0")).toBe("Firefox");
+		expect(stripVersion("Safari 17.2")).toBe("Safari");
+	});
+
+	it("keeps the OS name and drops the version", () => {
+		expect(stripVersion("macOS 10.15")).toBe("macOS");
+		expect(stripVersion("Windows 10")).toBe("Windows");
+		expect(stripVersion("Windows 8.1")).toBe("Windows");
+		expect(stripVersion("Android 13")).toBe("Android");
+		expect(stripVersion("iOS 17.3")).toBe("iOS");
+	});
+
+	it("leaves version-less (and empty) agents alone", () => {
+		expect(stripVersion("macOS")).toBe("macOS");
+		expect(stripVersion("iPadOS")).toBe("iPadOS");
+		expect(stripVersion("")).toBe("");
 	});
 });

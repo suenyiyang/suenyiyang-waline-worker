@@ -12,7 +12,7 @@ import {
 	insertRegion,
 	parseRegion,
 } from "../utils/region.js";
-import { parseUA } from "../utils/ua.js";
+import { parseUA, stripVersion } from "../utils/ua.js";
 import { getSettings } from "./settings.js";
 
 export const commentRoutes = new Hono<{
@@ -887,7 +887,14 @@ async function formatComment(
 	};
 
 	if (!isEnabled(env.DISABLE_USERAGENT ?? env.DISABLE_AGENT)) {
-		Object.assign(result, parseUA(row.ua || ""));
+		// HIDE_AGENT_VERSION strips the version numbers from the parsed agent: the
+		// version adds fingerprinting surface and UA reduction froze it anyway
+		// (every Chrome reports 156.0.0.0, every Mac 10.15). Admins still get the
+		// raw ua string below.
+		const hideVersion = isEnabled(env.HIDE_AGENT_VERSION);
+		const { browser, os } = parseUA(row.ua || "");
+		result.browser = hideVersion ? stripVersion(browser) : browser;
+		result.os = hideVersion ? stripVersion(os) : os;
 	}
 
 	const location = regionMap.get(row.id);
