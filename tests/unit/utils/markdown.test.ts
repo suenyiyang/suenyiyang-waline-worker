@@ -76,3 +76,61 @@ describe("renderMarkdown — XSS sanitization", () => {
 		expect(out).not.toContain("<script");
 	});
 });
+
+describe("renderMarkdown — Waline emoji", () => {
+	const SMILE =
+		'<img class="wl-emoji" src="https://unpkg.com/@waline/emojis@1.1.0/weibo/weibo_smile.png" alt="weibo_smile">';
+
+	it("expands :weibo_xxx: shortcodes from the editor", () => {
+		const out = renderMarkdown("忠实粉丝:weibo_smile:");
+		expect(out).toContain(SMILE);
+		expect(out).not.toContain(":weibo_smile:");
+	});
+
+	it("keeps underscores in emoji names out of emphasis", () => {
+		const out = renderMarkdown(":weibo_look_down:");
+		expect(out).not.toContain("<em>");
+		expect(out).toContain("weibo_look_down.png");
+	});
+
+	it("keeps a legacy <img class=wl-emoji> tag instead of escaping it", () => {
+		const out = renderMarkdown(
+			'粉丝<img class="wl-emoji" src="//unpkg.com/@waline/emojis@1.1.0/weibo/weibo_geili.png" alt="weibo_geili">',
+		);
+		expect(out).toContain(
+			'<img class="wl-emoji" src="https://unpkg.com/@waline/emojis@1.1.0/weibo/weibo_geili.png" alt="weibo_geili">',
+		);
+		expect(out).not.toContain("&lt;img");
+	});
+
+	it("leaves unknown shortcodes as plain text", () => {
+		expect(renderMarkdown(":not_an_emoji:")).toContain(":not_an_emoji:");
+		expect(renderMarkdown(":not_an_emoji:")).not.toContain("<img");
+	});
+
+	it("does not expand shortcodes inside code spans", () => {
+		const out = renderMarkdown("`:weibo_smile:`");
+		expect(out).toContain("<code>:weibo_smile:</code>");
+	});
+
+	it("rejects emoji images from other hosts", () => {
+		const out = renderMarkdown(
+			'<img class="wl-emoji" src="https://evil.example/weibo_smile.png" alt="x">',
+		);
+		expect(out).not.toContain("<img");
+	});
+
+	it("ignores submitted placeholder sentinels", () => {
+		expect(renderMarkdown("\uE0000\uE000")).not.toContain("\uE000");
+	});
+});
+
+describe("renderMarkdown — underscore emphasis", () => {
+	it("renders _italic_ at word edges", () => {
+		expect(renderMarkdown("say _hi_ now")).toContain("<em>hi</em>");
+	});
+
+	it("leaves snake_case identifiers alone", () => {
+		expect(renderMarkdown("use snake_case_name here")).not.toContain("<em>");
+	});
+});

@@ -5,10 +5,101 @@
 
 const SAFE_HREF = /^(https?:|mailto:|#|\/)/i;
 
+/* --- Emoji -------------------------------------------------------------
+ * The Waline client inserts `:weibo_smile:` shortcodes into the editor and
+ * expects the server to expand them into <img class="wl-emoji"> tags. It also
+ * ships emoji as that same <img> markup in older clients / pasted text. Both
+ * are normalised here, before HTML escaping, because escaping first turned the
+ * tag into visible text (and the `_` inside emoji names into <em>).
+ *
+ * Packs mirror @waline/client's default emoji config (one pinned CDN folder per
+ * pack), so shortcodes resolve to exactly the image the picker showed. */
+const EMOJI_PACKS: Record<string, { url: string; names: string[] }> = {
+	weibo: {
+		url: "https://unpkg.com/@waline/emojis@1.1.0/weibo",
+		names: `smile lovely blush grin laugh joy angry bye hammer kiss love mask
+			money quiet rage sad shy sick slient smirk slap antic desire longing
+			no_idea look_down clap yum sleep dizzy_face chuckle disappointed flushed
+			heart_eyes no shuai suprised think vomit scream sleepy sob sunglasses
+			greddy pick_nose annoyed awkward confused grievance poor wink
+			rolling_eyes watermalon annoyed_left annoyed_right yawn hufen doge husky
+			dog_annoyed dog_bye dog_consider dog_cry dog_joy dog_laugh dog_sweat
+			dog_think dog_yum cat cat_annoyed cat_bye cat_cry cat_think girl_annoyed
+			boy girl panda pig rabbit ultraman wool_group yan xi soap meng jiong
+			geili shenma alpaca`
+			.split(/\s+/)
+			.filter(Boolean),
+	},
+};
+
+const EMOJI_MAP = new Map<string, string>(
+	Object.entries(EMOJI_PACKS).flatMap(([pack, { url, names }]) =>
+		names.map(
+			(name) => [`${pack}_${name}`, `${url}/${pack}_${name}.png`] as const,
+		),
+	),
+);
+
+/** Only emoji images from the pinned Waline CDNs may pass through as HTML. */
+const EMOJI_IMG_SRC =
+	/^(?:https?:)?\/\/(?:unpkg\.com|cdn\.jsdelivr\.net)\/@waline\/emojis(?:@[\w.-]+)?\/[\w./-]+\.(?:png|gif|jpe?g|webp|svg)$/i;
+
+const EMOJI_SHORTCODE = /:([a-z0-9_]+):/gi;
+const EMOJI_IMG_TAG = /<img\b[^>]*>/gi;
+/** Code spans are left alone so `\`:weibo_smile:\`` stays literal. */
+const CODE_SPAN = /(```[\s\S]*?```|`[^`\n]+`)/;
+/** Private-use sentinel: never in real comments, stripped from input. */
+const STASH = /\uE000(\d+)\uE000/g;
+
+function readAttr(tag: string, name: string): string | null {
+	const match = new RegExp(
+		`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`,
+		"i",
+	).exec(tag);
+	if (!match) return null;
+	return match[1] ?? match[2] ?? "";
+}
+
+function emojiImage(src: string, alt: string): string {
+	return `<img class="wl-emoji" src="${escapeAttr(src)}" alt="${escapeAttr(alt)}">`;
+}
+
+/** Rebuilds a legacy/pasted <img> tag as a canonical emoji image, or null. */
+function normalizeEmojiTag(tag: string): string | null {
+	const src = readAttr(tag, "src");
+	if (!src || !EMOJI_IMG_SRC.test(src.trim())) return null;
+	return emojiImage(
+		src.trim().replace(/^\/\//, "https://"),
+		readAttr(tag, "alt") ?? "",
+	);
+}
+
 export function renderMarkdown(text: string): string {
 	if (!text) return "";
 
-	let html = text;
+	// Emitted emoji markup is stashed behind placeholders so escaping and the
+	// emphasis passes below cannot touch it.
+	const stashed: string[] = [];
+	const stash = (html: string) => `\uE000${stashed.push(html) - 1}\uE000`;
+
+	const expandEmoji = (segment: string) =>
+		segment
+			.replace(EMOJI_IMG_TAG, (tag) => {
+				const image = normalizeEmojiTag(tag);
+				return image ? stash(image) : tag;
+			})
+			.replace(EMOJI_SHORTCODE, (match, name: string) => {
+				const key = name.toLowerCase();
+				const url = EMOJI_MAP.get(key);
+				return url ? stash(emojiImage(url, key)) : match;
+			});
+
+	let html = text
+		// Drop our sentinel so submitted text cannot forge placeholders.
+		.replace(/\uE000/g, "")
+		.split(CODE_SPAN)
+		.map((segment, index) => (index % 2 ? segment : expandEmoji(segment)))
+		.join("");
 
 	// Escape HTML entities first (XSS prevention)
 	html = escapeHtml(html);
@@ -37,9 +128,10 @@ export function renderMarkdown(text: string): string {
 	html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 	html = html.replace(/__(.+?)__/g, "<strong>$1</strong>");
 
-	// Italic *text* or _text_
+	// Italic *text* or _text_. Underscores only count at word edges, so
+	// identifiers like `weibo_look_down` or `snake_case` stay literal.
 	html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
-	html = html.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<em>$1</em>");
+	html = html.replace(/(?<![\w])_(?!_)(.+?)(?<!_)_(?![\w])/g, "<em>$1</em>");
 
 	// Strikethrough ~~text~~
 	html = html.replace(/~~(.+?)~~/g, "<del>$1</del>");
@@ -87,6 +179,12 @@ export function renderMarkdown(text: string): string {
 	// Line breaks in paragraphs
 	html = html.replace(/(?<!\n)\n(?!\n)/g, "<br />\n");
 
+	// Restore the emoji markup stashed before escaping.
+	html = html.replace(
+		STASH,
+		(_match, index: string) => stashed[Number(index)] ?? "",
+	);
+
 	return html.trim();
 }
 
@@ -96,4 +194,13 @@ function escapeHtml(text: string): string {
 		.replace(/</g, "&lt;")
 		.replace(/>/g, "&gt;")
 		.replace(/"/g, "&quot;");
+}
+
+function escapeAttr(text: string): string {
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }
