@@ -8,6 +8,15 @@ export function parseUA(ua: string): { browser: string; os: string } {
 	return { browser: parseBrowser(ua), os: parseOS(ua) };
 }
 
+/**
+ * Drops the version from a parsed agent: "Chrome 156.0.0.0" → "Chrome",
+ * "macOS 10.15" → "macOS". Used for public display, where the version is
+ * fingerprinting surface and UA reduction froze the numbers anyway.
+ */
+export function stripVersion(agent: string): string {
+	return agent.replace(/\s+\d[\d.]*$/, "");
+}
+
 function parseBrowser(ua: string): string {
 	// Order matters: more specific first
 	const browsers: [RegExp, string][] = [
