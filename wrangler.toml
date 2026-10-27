@@ -8,9 +8,8 @@ compatibility_date = "2026-06-10"
 SITE_NAME = "suenyiyang.com"
 SITE_URL = "https://suenyiyang.com"
 SECURE_DOMAINS = "suenyiyang.com,waline.suenyiyang.com"
-# Show browser + OS without their version numbers ("Chrome", not
-# "Chrome 156.0.0.0"; "macOS", not "macOS 10.15").
-HIDE_AGENT_VERSION = "true"
+# Keep the browser / OS pills out of public comments.
+DISABLE_USERAGENT = "true"
 
 [[routes]]
 pattern = "waline.suenyiyang.com"

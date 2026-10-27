@@ -12,8 +12,6 @@ compatibility_date = "2026-06-03" # could be current-date
 # SECURE_DOMAINS = "yourdomain.com,localhost:3000"
 # Hide parsed browser and OS in public comments; DISABLE_AGENT is an environment variable alias.
 # DISABLE_USERAGENT = "true"
-# Show the parsed browser and OS without their version numbers.
-# HIDE_AGENT_VERSION = "true"
 # Client-facing proxy service URL for comment, user, and login avatars.
 # The Worker generates proxy URLs but does not forward image data.
 # AVATAR_PROXY = "https://avatar-proxy.example.com"
