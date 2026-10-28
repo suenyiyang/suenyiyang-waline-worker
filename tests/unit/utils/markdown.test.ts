@@ -47,6 +47,49 @@ describe("renderMarkdown — block elements", () => {
 	});
 });
 
+describe("renderMarkdown — line breaks", () => {
+	it("turns a single newline inside a paragraph into a <br />", () => {
+		expect(renderMarkdown("line one\nline two")).toBe(
+			"<p>line one<br />\nline two</p>",
+		);
+	});
+
+	it("treats a blank line as a paragraph break, not a <br />", () => {
+		const out = renderMarkdown("first\n\nsecond");
+		expect(out).toBe("<p>first</p>\n<p>second</p>");
+		expect(out).not.toContain("<br");
+	});
+
+	it("keeps <br /> out of the newlines between list items", () => {
+		const out = renderMarkdown("- one\n- two\n- three");
+		expect(out).toBe("<ul><li>one</li>\n<li>two</li>\n<li>three</li></ul>");
+		expect(out).not.toContain("<br");
+	});
+
+	it("puts no <br /> between a paragraph and the list after it", () => {
+		const out = renderMarkdown("intro\n\n- one\n- two");
+		expect(out).toBe("<p>intro</p>\n<ul><li>one</li>\n<li>two</li></ul>");
+	});
+
+	it("wraps text that follows a list in its own paragraph", () => {
+		expect(renderMarkdown("- one\n- two\n\nafter")).toContain(
+			"</ul>\n<p>after</p>",
+		);
+	});
+
+	it("leaves code block newlines alone", () => {
+		const out = renderMarkdown("```js\nconst a = 1;\nconst b = 2;\n```");
+		expect(out).toContain("const a = 1;\nconst b = 2;");
+		expect(out).not.toContain("<br");
+	});
+
+	it("keeps the <br /> inside a multi-line blockquote", () => {
+		expect(renderMarkdown("> one\n> two")).toBe(
+			"<blockquote>one<br />\ntwo</blockquote>",
+		);
+	});
+});
+
 describe("renderMarkdown — XSS sanitization", () => {
 	it("escapes <script> tags", () => {
 		const out = renderMarkdown("<script>alert(1)</script>");

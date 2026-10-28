@@ -138,8 +138,8 @@ export function renderMarkdown(text: string): string {
 
 	// Blockquote (> text)
 	html = html.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>");
-	// Merge consecutive blockquotes
-	html = html.replace(/<\/blockquote>\n<blockquote>/g, "\n");
+	// Merge consecutive blockquotes, keeping their line structure
+	html = html.replace(/<\/blockquote>\n<blockquote>/g, "<br />\n");
 
 	// Headings (# to ######)
 	html = html.replace(/^######\s+(.+)$/gm, "<h6>$1</h6>");
@@ -154,7 +154,13 @@ export function renderMarkdown(text: string): string {
 
 	// Unordered lists
 	html = html.replace(/^[*\-+]\s+(.+)$/gm, "<li>$1</li>");
-	html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>$1</ul>");
+	// Only newlines that separate items belong to the list. The old pattern
+	// swallowed a trailing newline too, which ate the blank line before a
+	// following paragraph and left that text bare instead of wrapped in <p>.
+	html = html.replace(
+		/(?:<li>[^\n]*<\/li>(?:\n(?=<li>))?)+/g,
+		(list) => `<ul>${list}</ul>`,
+	);
 
 	// Auto-link URLs (not already in href or src)
 	html = html.replace(
@@ -172,12 +178,14 @@ export function renderMarkdown(text: string): string {
 			if (/^<(h[1-6]|ul|ol|li|blockquote|pre|hr|p|div|table)/.test(block)) {
 				return block;
 			}
-			return `<p>${block}</p>`;
+			// A single newline is a soft break, and this is the only place a
+			// newline still means one: list items, block boundaries and code
+			// blocks are all already block-level here, and turning their
+			// newlines into <br /> painted stray empty lines inside lists and
+			// inside <pre><code>.
+			return `<p>${block.replace(/\n/g, "<br />\n")}</p>`;
 		})
 		.join("\n");
-
-	// Line breaks in paragraphs
-	html = html.replace(/(?<!\n)\n(?!\n)/g, "<br />\n");
 
 	// Restore the emoji markup stashed before escaping.
 	html = html.replace(
