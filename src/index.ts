@@ -46,7 +46,7 @@ app.use(
 				return origin;
 			}
 			return "";
-		}, 
+		},
 		allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 		allowHeaders: ["Content-Type", "Authorization"],
 		exposeHeaders: ["Content-Length", "x-waline-version"],
@@ -83,7 +83,12 @@ app.route("/api/db", dbRoutes);
 
 // Worker custom settings page — auth is enforced client-side so direct URL access works
 app.get("/ui/worker-setting", async (c) => {
-	return c.html(getCustomSettingsPage(c.req.url));
+	return c.html(
+		getCustomSettingsPage(c.req.url, {
+			siteName: c.env.SITE_NAME,
+			siteUrl: c.env.SITE_URL,
+		}),
+	);
 });
 
 // Admin panel UI (original @waline/admin from CDN)
