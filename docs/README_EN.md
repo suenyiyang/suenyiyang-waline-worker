@@ -1,59 +1,27 @@
 # Waline on Worker - Detailed Documentation
 
-## Recommended deployment: Overture
+## Deployment
 
-Open the [Overture deployment page](https://overture.voidcarve.com/?src=lsy-404/Waline_On_Worker), then select a release from this repository. It creates or reuses D1, applies the schema, deploys the Worker, and generates `JWT_SECRET` for a first deployment. A custom domain is optional: leave it empty for the Worker’s `workers.dev` address, or provide one to attach it.
+This repository deploys automatically through the Cloudflare Workers GitHub integration: every new commit pushed to `main` is built and released. There is no manual `wrangler deploy` step or deployment script.
 
-Choose **OAuth**, only when the Overture instance has enabled and configured it, to authorize Workers Scripts, D1, and the route and zone permissions needed for an optional custom domain; otherwise use an **Account API Token** created and pasted from Overture's prefilled permission template. The token is used only for this deployment and never becomes an application credential. Regular updates retain comment data and `JWT_SECRET`; a full rebuild retains D1 data but creates a new secret and invalidates login sessions. An empty CORS origins field during an update preserves `SECURE_DOMAINS`; clear or change it in the Cloudflare Dashboard Worker variables. To retain the ability to provide a custom domain, the OAuth and API Token permission template still lists route and zone access even when you leave the domain empty. Read and accept the package’s complete English and Chinese terms before deployment; they explain account charges, credential handling, and data responsibilities.
+### Initial setup
 
-## Manual deployment
-
-### Prerequisites
-
-* Node.js >= 18
-* pnpm
-* Cloudflare account
-* Wrangler CLI installed and logged in
-
-### One-Click Deployment
+Prepare the D1 database and secrets once; later deployments need no manual steps:
 
 ```bash
-# Clone the repository
-git clone https://github.com/lsy-404/Waline_On_Worker.git
-cd Waline_On_Worker
-
-# Run deployment script
-
-# Linux / macOS
-chmod +x deploy.sh
-./deploy.sh
-
-# Windows (PowerShell)
-.\deploy.ps1
-```
-
-### Manual Deployment
-
-```bash
-# 1. Install dependencies
 pnpm install
 
-# 2. Create a D1 database
+# Create the D1 database and put the returned database_id into wrangler.toml
 pnpm exec wrangler d1 create waline-db
 
-# 3. Edit wrangler.toml and fill in the database_id
-# returned from the previous step
-
-# 4. Initialize the database schema
+# Apply the schema to the remote database
 pnpm run db:init
 
-# 5. Set JWT secret
+# Set the JWT secret (enter a random string)
 pnpm exec wrangler secret put JWT_SECRET
-# Enter a random string as the secret
-
-# 6. Deploy
-pnpm run deploy
 ```
+
+After that, push the commits to `main` to deploy.
 
 ### Local Development
 
@@ -66,6 +34,12 @@ pnpm run dev
 ```
 
 ---
+
+## Alternative deployment: Overture
+
+Open the [Overture deployment page](https://overture.voidcarve.com/?src=lsy-404/Waline_On_Worker), then select a release from this repository. It creates or reuses D1, applies the schema, deploys the Worker, and generates `JWT_SECRET` for a first deployment. A custom domain is optional: leave it empty for the Worker’s `workers.dev` address, or provide one to attach it.
+
+Choose **OAuth**, only when the Overture instance has enabled and configured it, to authorize Workers Scripts, D1, and the route and zone permissions needed for an optional custom domain; otherwise use an **Account API Token** created and pasted from Overture's prefilled permission template. The token is used only for this deployment and never becomes an application credential. Regular updates retain comment data and `JWT_SECRET`; a full rebuild retains D1 data but creates a new secret and invalidates login sessions. An empty CORS origins field during an update preserves `SECURE_DOMAINS`; clear or change it in the Cloudflare Dashboard Worker variables. To retain the ability to provide a custom domain, the OAuth and API Token permission template still lists route and zone access even when you leave the domain empty. Read and accept the package’s complete English and Chinese terms before deployment; they explain account charges, credential handling, and data responsibilities.
 
 # API Endpoints
 
@@ -208,11 +182,10 @@ Display configuration details:
 
 Region data is stored in `wl_CommentRegion` and is deleted with its comment through a foreign-key cascade. Admin-panel Comment JSON export/import includes the optional `cfRegion: { country, region, city }` field for region backup.
 
-For an existing deployment, idempotently reapply `schema.sql` to create the region table before deploying the Worker. Run these commands in order:
+For an existing deployment, idempotently reapply `schema.sql` to create the region table, then push to `main` to trigger the automatic Worker deployment:
 
 ```bash
 pnpm exec wrangler d1 execute <database-name> --remote --file=./schema.sql
-pnpm run deploy
 ```
 
 ## Feature support and platform boundaries
@@ -324,7 +297,6 @@ schema.sql                 # D1 database schema
 migrate.ts                 # LeanCloud migration
 migrate-d1.ts              # D1-to-D1 migration
 wrangler.toml              # Workers configuration
-deploy.sh / deploy.ps1     # Deployment scripts
 ```
 
 ### Summary

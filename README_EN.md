@@ -84,7 +84,13 @@ The Akismet API key supports **two placement methods** — the environment varia
 
 This dual-placement design means you can manage the key however fits your workflow without changing code.
 
-## Recommended deployment: Overture
+## Deployment
+
+This repository deploys automatically through the Cloudflare Workers GitHub integration: every new commit pushed to `main` is built and released. There is no manual `wrangler deploy` step or deployment script.
+
+One-time setup (D1 database, schema, `JWT_SECRET`) is documented in the [docs](docs/README_EN.md#deployment). D1 schema changes are not part of the Worker release and still require `wrangler d1 execute` when needed.
+
+## Alternative deployment: Overture
 
 Deploy directly through the [Overture deployment page](https://overture.voidcarve.com/?src=lsy-404/Waline_On_Worker) without installing Node.js or Wrangler locally. Select a release from this repository and Overture creates or reuses the D1 database, applies the schema, deploys the Worker, and generates `JWT_SECRET` on the first deployment. A custom domain is optional: leave it empty to use the Worker’s `workers.dev` address, or provide one to attach it.
 
@@ -94,22 +100,6 @@ Overture can offer the following Cloudflare authentication methods:
 - **Account API Token**: create and paste a token using Overture's prefilled permission template. The token is used only for this deployment and is never stored as an application credential.
 
 Regular updates preserve comment data and the existing `JWT_SECRET`. A full rebuild also preserves D1 data but generates a new `JWT_SECRET`, invalidating current login sessions. Leaving the CORS origins field empty during an update preserves the current `SECURE_DOMAINS`; clear or change it in the Cloudflare Dashboard Worker variables. To retain the ability to provide a custom domain, the OAuth and API Token permission template still lists route and zone access even when you leave the domain empty. Read and accept the package’s complete English and Chinese terms before deployment; they explain account charges, credential handling, and data responsibilities.
-
-## Manual deployment
-
-```bash
-git clone https://github.com/lsy-404/Waline_On_Worker.git
-cd Waline_On_Worker
-pnpm install
-
-# Create D1 database and edit wrangler.toml
-pnpm exec wrangler d1 create waline-db
-pnpm run db:init
-pnpm exec wrangler secret put JWT_SECRET
-pnpm run deploy
-```
-
-Please refer to the [documentation](docs/README.md) for detailed deployment steps and configuration instructions.
 
 <details>
 <summary><strong>What's New</strong></summary>

@@ -85,7 +85,13 @@ Akismet API Key 支持**两种放置方式**，环境变量优先级始终高于
 
 两种方案可按需选用，无需修改代码。
 
-## 推荐部署：Overture
+## 部署
+
+本仓库通过 Cloudflare Workers 的 GitHub 集成自动部署：推送到 `main` 的新提交会自动构建并发布，无需运行 `wrangler deploy` 或部署脚本。
+
+首次配置（D1 数据库、schema、`JWT_SECRET` 等一次性步骤）见[文档](docs/README.md#部署)。D1 结构变更不会随 Worker 自动发布，需要按需执行 `wrangler d1 execute`。
+
+## 第三方部署：Overture
 
 使用 [Overture 部署入口](https://overture.voidcarve.com/?src=lsy-404/Waline_On_Worker) 可以直接部署，无需本地安装 Node.js 或 Wrangler。选择本仓库的发布版本后，Overture 会创建或复用 D1 数据库、写入 schema、部署 Worker，并在首次部署时生成 `JWT_SECRET`。自定义域名是可选项：留空会使用 Worker 的 `workers.dev` 地址；填写时才会绑定该域名。
 
@@ -95,22 +101,6 @@ Overture 可提供以下 Cloudflare 认证方式：
 - **Account API Token**：使用 Overture 预填权限模板创建并粘贴 API Token；该 Token 只用于本次部署，不会作为应用凭据保存。
 
 普通更新保留评论数据和已有 `JWT_SECRET`。完整重建也保留 D1 数据，但会生成新的 `JWT_SECRET`，使现有登录会话失效。更新时将 CORS 源地址留空会保留当前 `SECURE_DOMAINS`；如需清空它，请在 Cloudflare Dashboard 的 Worker 变量中修改。为了保留填写自定义域名的能力，OAuth 和 API Token 权限模板仍会列出路由与区域权限，即使本次留空域名。部署前请阅读并接受包内提供的中英文条款，其中说明了账户费用、凭证与数据责任。
-
-## 手动部署
-
-```bash
-git clone https://github.com/lsy-404/Waline_On_Worker.git
-cd Waline_On_Worker
-pnpm install
-
-# 创建 D1 数据库并编辑 wrangler.toml
-pnpm exec wrangler d1 create waline-db
-pnpm run db:init
-pnpm exec wrangler secret put JWT_SECRET
-pnpm run deploy
-```
-
-详细部署步骤和配置说明请参阅[文档](docs/README.md)。
 
 <details>
 <summary><strong>更新日志</strong></summary>
