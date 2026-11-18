@@ -2,58 +2,28 @@
 
 For international audience: [English Documentation](README_EN.md)
 
-## 推荐部署：Overture
+## 部署
 
-打开 [Overture 部署入口](https://overture.voidcarve.com/?src=lsy-404/Waline_On_Worker)，选择本仓库的发布版本即可部署。它会创建或复用 D1 数据库、写入 schema、部署 Worker，并在首次部署时生成 `JWT_SECRET`。自定义域名可选：留空将使用 Worker 的 `workers.dev` 地址；填写时才会绑定域名。
+本仓库通过 Cloudflare Workers 的 GitHub 集成自动部署：推送到 `main` 的新提交会自动构建并发布。无需运行 `wrangler deploy` 或部署脚本。
 
-可选择 **OAuth**（仅当所用 Overture 实例已启用并配置 OAuth 时可用，授权 Workers Scripts、D1 以及可选自定义域名所需的路由与区域权限）或 **Account API Token**（按预填权限模板创建并粘贴 Token）。Token 仅用于当前部署，不会作为应用凭据保存。普通更新会保留评论数据和 `JWT_SECRET`；完整重建会保留 D1 数据但生成新密钥，现有登录会话会失效。更新时留空 CORS 源地址会保留当前 `SECURE_DOMAINS`，可在 Cloudflare Dashboard 的 Worker 变量中清空或修改。为了保留填写自定义域名的能力，OAuth 和 API Token 权限模板仍会列出路由与区域权限，即使本次留空域名。部署前请阅读并接受包内的完整中英文条款，其中明确账户费用、凭证与数据责任。
+### 首次配置
 
-## 手动部署
-
-### 前提条件
-
-- [Node.js](https://nodejs.org/) >= 18
-- [pnpm](https://pnpm.io/)
-- [Cloudflare 账号](https://dash.cloudflare.com/)
-- 已安装并登录 [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
-
-### 一键部署
+首次部署前准备 D1 数据库和密钥，之后无需重复：
 
 ```bash
-# 克隆仓库
-git clone https://github.com/lsy-404/Waline_On_Worker.git
-cd Waline_On_Worker
-
-# 运行部署脚本
-# Linux / macOS
-chmod +x deploy.sh
-./deploy.sh
-
-# Windows (PowerShell)
-.\deploy.ps1
-```
-
-### 手动部署
-
-```bash
-# 1. 安装依赖
 pnpm install
 
-# 2. 创建 D1 数据库
+# 创建 D1 数据库，并把返回的 database_id 填入 wrangler.toml
 pnpm exec wrangler d1 create waline-db
 
-# 3. 编辑 wrangler.toml，填入上一步返回的 database_id
-
-# 4. 初始化数据库 Schema
+# 初始化远程数据库 schema
 pnpm run db:init
 
-# 5. 设置 JWT 密钥
+# 设置 JWT 密钥（输入一个随机字符串）
 pnpm exec wrangler secret put JWT_SECRET
-# 输入一个随机字符串作为密钥
-
-# 6. 部署
-pnpm run deploy
 ```
+
+完成配置后，将代码推送到 `main` 即会自动部署。
 
 ### 本地开发
 
@@ -64,6 +34,12 @@ pnpm run db:init:local
 # 启动开发服务器
 pnpm run dev
 ```
+
+## 第三方部署：Overture
+
+打开 [Overture 部署入口](https://overture.voidcarve.com/?src=lsy-404/Waline_On_Worker)，选择本仓库的发布版本即可部署。它会创建或复用 D1 数据库、写入 schema、部署 Worker，并在首次部署时生成 `JWT_SECRET`。自定义域名可选：留空将使用 Worker 的 `workers.dev` 地址；填写时才会绑定域名。
+
+可选择 **OAuth**（仅当所用 Overture 实例已启用并配置 OAuth 时可用，授权 Workers Scripts、D1 以及可选自定义域名所需的路由与区域权限）或 **Account API Token**（按预填权限模板创建并粘贴 Token）。Token 仅用于当前部署，不会作为应用凭据保存。普通更新会保留评论数据和 `JWT_SECRET`；完整重建会保留 D1 数据但生成新密钥，现有登录会话会失效。更新时留空 CORS 源地址会保留当前 `SECURE_DOMAINS`，可在 Cloudflare Dashboard 的 Worker 变量中清空或修改。为了保留填写自定义域名的能力，OAuth 和 API Token 权限模板仍会列出路由与区域权限，即使本次留空域名。部署前请阅读并接受包内的完整中英文条款，其中明确账户费用、凭证与数据责任。
 
 ## API 端点
 
@@ -193,10 +169,9 @@ pnpm exec wrangler d1 execute <database-name> --remote --file=backup.sql
 - `LEVELS` 未设置、为空、`false` 或 `0` 时关闭。示例：`0,10,20,50,100,200`。阈值按公开且已通过审核的评论数计算，并跨页面累计；登录用户按 `user_id` 归属，匿名评论按邮箱归属，没有邮箱时等级为 0。响应中的整数 `level` 字段由客户端的 `locale.levelN` 文案显示。
 - 新评论提交时，Worker 只使用 Cloudflare 的 [`request.cf` 国家、地区和城市信息](https://developers.cloudflare.com/workers/runtime-apis/request/#incomingrequestcfproperties)；不采信请求正文或地理位置请求头，也不使用阅读者的位置。公开评论的 `addr` 显示国家代码和省区，管理员通过 `type=list` 可额外取得城市。Cloudflare 未提供数据（例如本地/预览请求）或旧评论没有地区记录时，不返回地区 `addr`；旧评论不会补查。`DISABLE_REGION` 未设置、为空、`false` 或 `0` 时保留公开地区显示；设为 `true` 或其他非空值时隐藏公开 `addr`，管理员仍可见地区。
 - 地区数据保存在 `wl_CommentRegion` 表中，随评论删除通过外键级联删除。管理面板 Comment JSON 导出/导入会携带可选的 `cfRegion: { country, region, city }`，可用于地区数据备份。
-- 已有部署升级时，先幂等重放 `schema.sql` 创建地区表，再部署 Worker，按以下顺序执行：
+- 已有部署升级时，先幂等重放 `schema.sql` 创建地区表；随后推送到 `main` 触发自动部署：
   ```bash
   pnpm exec wrangler d1 execute <database-name> --remote --file=./schema.sql
-  pnpm run deploy
   ```
 
 ### 功能支持范围与平台边界
@@ -290,6 +265,5 @@ OAuth 登录通过外部代理服务处理 Client ID/Secret，无需在 Worker �
 ├── schema.sql                 # D1 数据库 Schema
 ├── migrate.ts                 # LeanCloud 数据迁移
 ├── migrate-d1.ts              # D1 间数据迁移
-├── wrangler.toml              # Workers 配置
-└── deploy.sh / deploy.ps1     # 部署脚本
+└── wrangler.toml              # Workers 配置
 ```
