@@ -141,6 +141,13 @@ body.waline-body .typecho-head-nav .operate button:hover{
   border-color:var(--wa-rule-strong);background:var(--wa-accent-soft);
   color:var(--wa-text);box-shadow:none;transform:none;
 }
+/* The theme toggle is a round icon button; @waline/admin styles the
+   ".operate button" as inline-block with 20px side padding, so restate the
+   flex centering here with enough specificity to win. */
+body.waline-body .typecho-head-nav .operate button.wk-theme-toggle{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:38px;height:38px;padding:0;line-height:1;
+}
 body.waline-body .wk-badge{
   display:inline-block;margin:0 2px 0 0;padding:0 8px;
   background:var(--wa-accent-soft);color:var(--wa-accent-hover);
@@ -595,7 +602,8 @@ body.waline-body .wk-settings-fab:hover{transform:translateY(-2px);border-color:
   }
   body.waline-body .author-avatar{width:30px;height:30px}
   body.waline-body .author-name{display:none}
-  body.waline-body .typecho-head-nav .wk-theme-toggle{grid-area:theme;width:34px;height:34px}
+  body.waline-body .typecho-head-nav .wk-theme-toggle{grid-area:theme}
+  body.waline-body .typecho-head-nav .operate button.wk-theme-toggle{width:34px;height:34px}
   body.waline-body .typecho-head-nav .operate .exit,
   body.waline-body .typecho-head-nav .operate button:not(.wk-theme-toggle){
     grid-area:exit;justify-self:end;height:34px;padding:0 12px;
