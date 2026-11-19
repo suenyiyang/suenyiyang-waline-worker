@@ -13,7 +13,7 @@ DISABLE_USERAGENT = "true"
 # Keep the location pill out of public comments; admins still see region data.
 DISABLE_REGION = "true"
 # Comment email notifications (provider key is the RESEND_API_KEY secret).
-MAIL_FROM = "YiyangSuen <no-reply@suenyiyang.com>"
+MAIL_FROM = "Yiyang's Blog <no-reply@suenyiyang.com>"
 
 [[routes]]
 pattern = "waline.suenyiyang.com"

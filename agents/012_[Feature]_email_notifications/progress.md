@@ -22,7 +22,7 @@
 
 - 安装 `cf` 1.0.0-rc.1（`npm install --global cf`，pnpm 全局 bin 不在 PATH），OAuth 设备登录。
 - `cf d1 query` 重放 `schema.sql`（去注释后 18 条语句全部 success），远程 `waline-db` 新增 `wl_Notify` / `wl_NotifyMute`；原有 11 条评论与账号数据未变。
-- `cf workers secrets update RESEND_API_KEY --type secret_text` 写入 Worker `suenyiyang-waline`；`wrangler.toml` 增加 `MAIL_FROM = "YiyangSuen <no-reply@suenyiyang.com>"`。
+- `cf workers secrets update RESEND_API_KEY --type secret_text` 写入 Worker `suenyiyang-waline`；`wrangler.toml` 增加 `MAIL_FROM = "Yiyang's Blog <no-reply@suenyiyang.com>"`。
 - Resend 发件域名 `suenyiyang.com` 由仓库所有者完成验证；`wrangler deploy --dry-run` 通过。
 - 提交 82fd505 推送 `main`，GitHub 集成自动部署完成。
 - 线上验证：`GET /api/notify/unsubscribe` 返回 400（路由已上线）；向 `/notify-selftest` 投稿与回复后，`wl_Notify` 出现 `admin`（评论 18、20）与 `reply`（评论 20）占位记录，说明 Resend 均返回成功；管理员本人评论不产生 `admin` 通知（符合预期）。
