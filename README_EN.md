@@ -51,8 +51,27 @@ A [Waline](https://waline.js.org/) comment system backend implementation running
 - [x] Admin dashboard (@waline/admin CDN + Worker settings page)
 - [x] IP rate limiting (IPQPS) can be directly configured via Cloudflare security rules
 - [x] Additional management panel to set default frontend versions, control default comment statuses, configure spam moderation strategies, and more
-- [ ] Email notifications (SMTP)
+- [x] Email notifications (Resend / Cloudflare Email Routing, with reply alerts and opt-out)
 - [ ] Webhook notifications
+
+## Email notifications
+
+New comments, replies, and approvals can trigger email alerts. Delivery uses HTTPS mail providers (Resend or a Cloudflare Email Routing binding), not SMTP. See the [docs](docs/README_EN.md#email-notifications) for trigger rules, rate limits, and opt-out.
+
+```bash
+# 1. Create the notification dedupe and opt-out tables (idempotent)
+pnpm exec wrangler d1 execute waline-db --remote --file=./schema.sql
+
+# 2. Configure a Resend key (needed to alert commenters about replies)
+pnpm exec wrangler secret put RESEND_API_KEY
+```
+
+Then set the sender in `wrangler.toml` `[vars]`:
+
+```toml
+MAIL_FROM = "Blog <notify@yourdomain.com>"
+# NOTIFY_EMAILS = "you@example.com"  # defaults to administrator account emails
+```
 
 ## Configuration Priority
 

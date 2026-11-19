@@ -5,6 +5,7 @@ import { auth } from "./middleware/auth.js";
 import { articleRoutes } from "./router/article.js";
 import { commentRoutes } from "./router/comment.js";
 import { dbRoutes } from "./router/db.js";
+import { notifyRoutes } from "./router/notify.js";
 import { oauthRoutes } from "./router/oauth.js";
 import { settingsRoutes } from "./router/settings.js";
 import { tokenRoutes } from "./router/token.js";
@@ -79,6 +80,7 @@ app.route("/api/user", userRoutes);
 app.route("/api/token", tokenRoutes);
 app.route("/api/settings", settingsRoutes);
 app.route("/api/oauth", oauthRoutes);
+app.route("/api/notify", notifyRoutes);
 app.route("/api/db", dbRoutes);
 
 // Worker custom settings page — auth is enforced client-side so direct URL access works

@@ -15,7 +15,7 @@ export interface Env {
 	IPQPS?: string;
 	AUDIT?: string;
 
-	// SMTP
+	// SMTP (upstream compatibility: read by the notification sender)
 	SMTP_SERVICE?: string;
 	SMTP_HOST?: string;
 	SMTP_PORT?: string;
@@ -23,6 +23,14 @@ export interface Env {
 	SMTP_PASS?: string;
 	SENDER_NAME?: string;
 	SENDER_EMAIL?: string;
+
+	// Email notifications (HTTPS providers; Workers cannot rely on TCP/25)
+	NOTIFY_EMAILS?: string;
+	MAIL_FROM?: string;
+	MAIL_REPLY_TO?: string;
+	RESEND_API_KEY?: string;
+	MAIL?: EmailSender;
+	DISABLE_EMAIL_NOTIFY?: string;
 
 	// OAuth
 	OAUTH_URL?: string;
@@ -41,6 +49,16 @@ export interface Env {
 	TURNSTILE_SECRET?: string;
 	RECAPTCHA_V3_KEY?: string;
 	RECAPTCHA_V3_SECRET?: string;
+}
+
+export interface EmailSender {
+	send(message: {
+		to: string | string[];
+		from: string;
+		subject: string;
+		html?: string;
+		text?: string;
+	}): Promise<unknown>;
 }
 
 export interface UserInfo {

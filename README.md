@@ -52,8 +52,27 @@ For international audience: [English Documentation](README_EN.md)
 - [x] 管理面板（@waline/admin CDN + Worker 设置页）
 - [x] IP 频率限制 (IPQPS) 可直接配置 Cloudflare 安全规则实现
 - [x] 附加管理面板，能够设置前端默认版本，控制评论默认状态，配置反垃圾策略等功能
-- [ ] 邮件通知（SMTP）
+- [x] 邮件通知（Resend / Cloudflare Email Routing，含回复提醒与退订）
 - [ ] Webhook 通知
+
+## 邮件通知
+
+新评论、回复、审核通过都可以通过邮件提醒，使用 HTTPS 邮件服务（Resend 或 Cloudflare Email Routing 绑定），不依赖 SMTP。完整说明（触发规则、限流、退订）见[文档](docs/README.md#邮件通知)。
+
+```bash
+# 1. 创建邮件通知去重与退订表（幂等）
+pnpm exec wrangler d1 execute waline-db --remote --file=./schema.sql
+
+# 2. 配置 Resend 密钥（需要给评论者发送回复提醒时）
+pnpm exec wrangler secret put RESEND_API_KEY
+```
+
+然后在 `wrangler.toml` 的 `[vars]` 中设置发件人：
+
+```toml
+MAIL_FROM = "Blog <notify@yourdomain.com>"
+# NOTIFY_EMAILS = "you@example.com"  # 不设置时发送给管理员账号邮箱
+```
 
 ## 配置优先级
 

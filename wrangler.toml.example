@@ -20,6 +20,24 @@ compatibility_date = "2026-06-03" # could be current-date
 # Hide public comment region data; administrators can still see it.
 # DISABLE_REGION = "true"
 
+# Email notifications (optional). Delivery uses HTTPS providers only.
+# MAIL_FROM is required: `Blog <notify@yourdomain.com>` (verify the domain with your provider).
+# MAIL_FROM = "Blog <notify@yourdomain.com>"
+# Comma-separated administrator recipients; defaults to administrator account emails.
+# NOTIFY_EMAILS = "you@example.com"
+# Optional Reply-To and kill switch.
+# MAIL_REPLY_TO = "you@example.com"
+# DISABLE_EMAIL_NOTIFY = "true"
+# Put the provider API key in a secret instead of [vars]:
+#   pnpm exec wrangler secret put RESEND_API_KEY
+
+# Optional: deliver administrator alerts through Cloudflare Email Routing instead of
+# Resend. The binding can only reach verified destinations, so reply alerts still
+# need RESEND_API_KEY. Enable Email Routing for the zone first, then uncomment:
+# [[send_email]]
+# name = "MAIL"
+# allowed_destination_addresses = ["you@example.com"]
+
 # Cloudflare D1 Database Binding
 [[d1_databases]]
 binding = "DB" # Do not change this binding name

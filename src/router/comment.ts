@@ -5,6 +5,7 @@ import { getAvatar, proxyAvatar } from "../utils/avatar.js";
 import { getLevel, isEnabled, parseLevels } from "../utils/display.js";
 import { reviewComment } from "../utils/llm-review.js";
 import { renderMarkdown } from "../utils/markdown.js";
+import { dispatchCommentNotifications } from "../utils/notify.js";
 import {
 	type CommentRegion,
 	formatRegion,
@@ -154,25 +155,38 @@ commentRoutes.post("/", async (c) => {
 		.bind(result.meta.last_row_id)
 		.first();
 
-	// Async spam review (Akismet / LLM / Mix)
+	// Async spam review, then email notifications based on the final status
 	if (newComment) {
 		const commentId = (newComment as any).id;
 		c.executionCtx.waitUntil(
-			runSpamReview({
-				db: c.env.DB,
-				env: c.env,
-				commentId,
-				commentText: comment,
-				nick: nick || "",
-				mail: userInfo?.email || mail || "",
-				ip,
-				ua: ua || "",
-				pageUrl: url,
-				userInfo,
-				currentStatus: status,
-			}).catch((err) =>
-				console.error("[Spam Review Error]", err?.message || err),
-			),
+			(async () => {
+				let finalStatus = status;
+				try {
+					finalStatus = await runSpamReview({
+						db: c.env.DB,
+						env: c.env,
+						commentId,
+						commentText: comment,
+						nick: nick || "",
+						mail: userInfo?.email || mail || "",
+						ip,
+						ua: ua || "",
+						pageUrl: url,
+						userInfo,
+						currentStatus: status,
+					});
+				} catch (err: any) {
+					console.error("[Spam Review Error]", err?.message || err);
+				}
+
+				// Spam comments are never announced; everything else is.
+				if (finalStatus !== "spam") {
+					await dispatchCommentNotifications(c.env.DB, c.env, commentId, {
+						phase: "created",
+						requestUrl: c.req.url,
+					});
+				}
+			})(),
 		);
 	}
 
@@ -223,6 +237,13 @@ commentRoutes.put("/:id", async (c) => {
 
 	const updates: string[] = [];
 	const values: unknown[] = [];
+
+	const previous =
+		body.status !== undefined
+			? await c.env.DB.prepare("SELECT status FROM wl_Comment WHERE id = ?")
+					.bind(id)
+					.first<{ status: string }>()
+			: null;
 
 	if (body.status !== undefined) {
 		updates.push("status = ?");
@@ -297,6 +318,21 @@ commentRoutes.put("/:id", async (c) => {
 	)
 		.bind(id)
 		.first();
+
+	// Notify the author (and the parent commenter) when a pending comment is
+	// approved for the first time. Dedupe rows make this safe to repeat.
+	if (
+		previous &&
+		previous.status !== "approved" &&
+		body.status === "approved"
+	) {
+		c.executionCtx.waitUntil(
+			dispatchCommentNotifications(c.env.DB, c.env, Number(id), {
+				phase: "approved",
+				requestUrl: c.req.url,
+			}),
+		);
+	}
 
 	return c.json({
 		errno: 0,
@@ -675,7 +711,7 @@ async function runSpamReview(opts: {
 	pageUrl: string;
 	userInfo: any;
 	currentStatus: string;
-}): Promise<void> {
+}): Promise<string> {
 	const {
 		db,
 		env,
@@ -708,7 +744,7 @@ async function runSpamReview(opts: {
 		mode = legacy === "off" ? "off" : "llm";
 	}
 
-	if (mode === "off") return;
+	if (mode === "off") return currentStatus;
 
 	// Akismet logic: env AKISMET_KEY > DB akismet_key
 	const effectiveAkismetKey = env.AKISMET_KEY || settings.akismet_key || "";
@@ -751,7 +787,7 @@ async function runSpamReview(opts: {
 		if (newStatus === "spam") isSpam = true;
 	}
 
-	if (!isSpam) return;
+	if (!isSpam) return currentStatus;
 
 	await db
 		.prepare(
@@ -759,6 +795,8 @@ async function runSpamReview(opts: {
 		)
 		.bind(commentId, currentStatus)
 		.run();
+
+	return "spam";
 }
 
 async function formatComments(rows: any[], env: Env, isAdmin = false) {

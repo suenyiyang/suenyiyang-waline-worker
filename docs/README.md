@@ -106,6 +106,7 @@ OAuth 流程通过外部 OAuth 代理服务（默认 `https://oauth.lithub.cc`�
 |------|------|------|------|
 | `GET` | `/api/settings` | 获取设置 | Admin |
 | `PUT` | `/api/settings` | 更新设置 | Admin |
+| `GET` | `/api/notify/unsubscribe?token=` | 取消回复邮件提醒 | 签名 Token |
 
 ### 管理面板
 
@@ -178,7 +179,7 @@ pnpm exec wrangler d1 execute <database-name> --remote --file=backup.sql
 
 评论显示变量 `DISABLE_REGION`、`DISABLE_USERAGENT`（及别名 `DISABLE_AGENT`）、`AVATAR_PROXY` 和 `LEVELS` 均已接入。
 
-以下上游变量和能力目前尚未实现或接入，设置它们不会启用对应功能（`LOGIN` 是变量名，不代表项目没有现有登录功能）：`LOGIN`、`SERVER_URL`、`GRAVATAR_STR`、`COMMENT_AUDIT`、`MARKDOWN_*`、`SMTP_*`、`SENDER_*`、`DISABLE_AUTHOR_NOTIFY`、`WEBHOOK`、服务端 `TURNSTILE_SECRET` / `RECAPTCHA_V3_SECRET` 验证，以及 `IPQPS` 环境变量限流。项目已有自定义 `AUDIT`，不能用上游 `COMMENT_AUDIT` 变量替代。Captcha 前端 key 目前只注入管理面板，尚未形成完整的机器人验证。这些集成都可以后续实现，并非 Workers 做不到。
+以下上游变量和能力目前尚未实现或接入，设置它们不会启用对应功能（`LOGIN` 是变量名，不代表项目没有现有登录功能）：`LOGIN`、`SERVER_URL`、`GRAVATAR_STR`、`COMMENT_AUDIT`、`MARKDOWN_*`、`SMTP_SERVICE` / `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS`、`DISABLE_AUTHOR_NOTIFY`、`WEBHOOK`、服务端 `TURNSTILE_SECRET` / `RECAPTCHA_V3_SECRET` 验证，以及 `IPQPS` 环境变量限流。项目已有自定义 `AUDIT`，不能用上游 `COMMENT_AUDIT` 变量替代。邮件通知已接入，但使用 Resend / Email Routing 等 HTTPS 方式，不读取 `SMTP_*` 连接参数，关闭开关使用自定义的 `DISABLE_EMAIL_NOTIFY`；`SENDER_NAME` / `SENDER_EMAIL` 作为发件人回退被使用。Captcha 前端 key 目前只注入管理面板，尚未形成完整的机器人验证。这些集成都可以后续实现，并非 Workers 做不到。
 
 此后端固定使用 D1；上游 Waline 的 `MONGO_*`、`MYSQL_*`、`PG_*` / `POSTGRES_*`、`LEAN_*`、`GITHUB_*`、`TCB_*` 等存储驱动变量不会切换本项目的数据存储。这是当前后端选择，不代表 Workers 无法连接其他数据库。
 
@@ -188,13 +189,61 @@ pnpm exec wrangler d1 execute <database-name> --remote --file=backup.sql
 - 匿名等级按邮箱关联，邮箱不是经过认证的身份，因此等级不保证对应真实或唯一的自然人。
 - 头像代理只按 `?url=` 生成供客户端使用的第三方代理服务 URL；本项目不转发图片，也不能保证外部服务持续可用。
 - Workers 的 `/tmp` 文件系统不跨请求持久化，不能把传统 `SQLITE_PATH` 或宿主文件路径直接当作持久数据库文件。[Node.js 文件系统文档](https://developers.cloudflare.com/workers/runtime-apis/nodejs/fs/)
-- Workers 默认禁用 TCP 25 端口；这不代表所有 SMTP 或邮件发送都不可用，需按邮件服务支持的连接方式配置。[TCP sockets 文档](https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/)
+- Workers 默认禁用 TCP 25 端口，运行时也没有内置 SMTP 客户端，因此邮件通知改用 HTTPS 邮件服务，见[邮件通知](#邮件通知)。[TCP sockets 文档](https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/)
 
 ### Secrets (通过 `wrangler secret put` 设置)
 
 | Secret | 说明 | 必需 |
 |--------|------|------|
 | `JWT_SECRET` | JWT 签名密钥 | ✅ |
+| `RESEND_API_KEY` | Resend API Key；配置后才能向任意评论者发送回复提醒 | 需要邮件通知时 |
+
+### 邮件通知
+
+评论通知通过 HTTPS 邮件服务发送，不建立 SMTP 连接。支持两种投递方式，同时配置时优先使用 Resend：
+
+| 方式 | 可投递范围 | 说明 |
+|------|------------|------|
+| Resend（`RESEND_API_KEY`） | 任意邮箱 | 推荐；回复提醒和审核通过提醒需要它 |
+| Cloudflare Email Routing（`MAIL` 绑定） | 仅账户内已验证的目的地址 | 无需第三方密钥，只用于管理员通知 |
+
+触发规则：
+
+| 事件 | 收件人 |
+|------|--------|
+| 新评论（已发布或等待审核） | 管理员：`NOTIFY_EMAILS`，未设置时取 `wl_Users` 中 `type = 'administrator'` 的账号邮箱 |
+| 已发布的回复 | 被回复评论的作者（`pid` 指向的评论） |
+| 等待审核的评论被批准 | 评论作者，以及被回复评论的作者 |
+
+- 垃圾评论（`spam`）不发送任何通知；管理员自己的评论不再给管理员发提醒。
+- 同一条评论、同一类通知、同一收件人只发送一次（`wl_Notify` 去重），审核通过时不会重复补发。
+- 每个收件人每小时最多 8 封，超出后本轮跳过。
+- 回复提醒与审核通过提醒带有退订链接：HMAC 签名的邮箱令牌，点击后写入 `wl_NotifyMute`，无需登录。
+- 通知在 `waitUntil` 中异步发送，失败只记录日志，不影响评论接口的返回结果。
+
+配置：
+
+| 变量 | 说明 | 必需 |
+|------|------|------|
+| `RESEND_API_KEY` | Resend API Key，建议用 `wrangler secret put` 设置 | 需要回复提醒时 |
+| `MAIL_FROM` | 发件人，例如 `Blog <notify@yourdomain.com>`；域名需在 Resend 中验证 | 需要邮件通知时 |
+| `NOTIFY_EMAILS` | 管理员收件人，逗号分隔；不设置时读取管理员账号邮箱 | - |
+| `MAIL_REPLY_TO` | 可选 Reply-To 地址 | - |
+| `SENDER_NAME` / `SENDER_EMAIL` | 未设置 `MAIL_FROM` 时的发件人回退（兼容上游变量） | - |
+| `DISABLE_EMAIL_NOTIFY` | 设为 `true` 等非 `false`/`0` 的值时关闭全部邮件通知 | - |
+
+首次启用（或从旧版本升级）需要幂等重放 `schema.sql`，创建 `wl_Notify` 与 `wl_NotifyMute`：
+
+```bash
+pnpm exec wrangler d1 execute <database-name> --remote --file=./schema.sql
+```
+
+如果只用 Cloudflare Email Routing：先在域名上启用 Email Routing 并验证收件地址，再在 `wrangler.toml` 增加绑定（可选 `allowed_destination_addresses` 限制收件人）：
+
+```toml
+[[send_email]]
+name = "MAIL"
+```
 
 ### Worker 设置 (通过管理面板 `/ui/worker-setting` 配置)
 

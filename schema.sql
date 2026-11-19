@@ -83,3 +83,21 @@ CREATE TABLE IF NOT EXISTS "wl_Settings" (
   "value" TEXT NOT NULL DEFAULT '',
   "updatedAt" TEXT DEFAULT (datetime('now'))
 );
+
+-- Email notification dedupe log (one row per comment / kind / recipient).
+CREATE TABLE IF NOT EXISTS "wl_Notify" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "comment_id" INTEGER NOT NULL,
+  "kind" TEXT NOT NULL,
+  "recipient" TEXT NOT NULL,
+  "createdAt" TEXT DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_notify_dedupe" ON "wl_Notify" ("comment_id", "kind", "recipient");
+CREATE INDEX IF NOT EXISTS "idx_notify_recipient" ON "wl_Notify" ("recipient", "createdAt");
+
+-- Opt-out list for reply/approval notifications.
+CREATE TABLE IF NOT EXISTS "wl_NotifyMute" (
+  "email" TEXT PRIMARY KEY,
+  "createdAt" TEXT DEFAULT (datetime('now'))
+);
