@@ -8,4 +8,5 @@
 - [x] 新增 `GET /api/notify/unsubscribe` 退订端点与 `wl_Notify` / `wl_NotifyMute` 幂等 schema。
 - [x] 新增 31 个单元/集成用例，覆盖去重、限流、静音、spam、审核流转、路由接线与两种传输。
 - [x] 更新中英文文档、特性列表与 `wrangler.toml.example` 示例。
-- [ ] 生产启用：重放 `schema.sql`、配置 `RESEND_API_KEY` 与 `MAIL_FROM`（需账户凭据，未执行）。
+- [x] 生产启用：用 `cf` CLI 重放 `schema.sql`、写入 `RESEND_API_KEY` secret、在 `wrangler.toml` 设置 `MAIL_FROM`。
+- [x] 推送 `main` 自动部署，并在线上验证管理员/回复两条通知链路（测试评论已清理）。

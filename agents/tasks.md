@@ -10,4 +10,4 @@
 | 009 | [PackageManagement] pnpm CLI migration | Make Worker setup and deployment pnpm-only | Keep supported Node.js workflows consistently on pnpm | ✅ 已完成 |
 | 010 | [Feature]_display_environment_variables | 支持评论显示环境变量与 API 行为验证 | 跟进用户所需的显示与头像、等级配置 | 🔄 进行中（实现与验证完成，PR 待审核） |
 | 011 | [Review]_display_configuration | 对抗审查显示配置与支持边界，修复后评论及合并 | 确认实际能力与交付可靠性 | 🔄 进行中 |
-| 012 | [Feature]_email_notifications | 新评论、回复与审核通过的邮件提醒，含去重、限流与退订 | 用户反馈评论与回复都收不到通知 | 🔄 进行中（实现与验证完成，待配置并部署） |
+| 012 | [Feature]_email_notifications | 新评论、回复与审核通过的邮件提醒，含去重、限流与退订 | 用户反馈评论与回复都收不到通知 | ✅ 已完成 |
