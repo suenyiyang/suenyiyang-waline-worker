@@ -10,6 +10,10 @@
  *                     only deliver to verified destinations on the account.
  *
  * Configure `RESEND_API_KEY` (preferred) or bind `MAIL` to use Email Routing.
+ *
+ * Templates mirror https://suenyiyang.com (Flexoki paper + ink, LXGW WenKai
+ * body, IBM Plex Mono metadata, hairline rules, a single blue accent and no
+ * cards). Tokens are copied from the blog's `src/index.css`.
  */
 import type { Env } from "../env.js";
 import { isEnabled } from "./display.js";
@@ -26,6 +30,29 @@ export interface MailMessage {
 	/** Optional unsubscribe URL, exported as List-Unsubscribe for Resend. */
 	unsubscribeUrl?: string;
 }
+
+/** Design tokens of https://suenyiyang.com (light and dark reading surfaces). */
+export const BLOG_TOKENS = {
+	paper: "#FFFCF0",
+	ink: "#100F0F",
+	body: "#343331",
+	secondary: "#575653",
+	muted: "#6F6E69",
+	rule: "#E6E4D9",
+	accent: "#027AFF",
+	darkPaper: "#100F0F",
+	darkInk: "#E6E4D9",
+	darkBody: "#CECDC3",
+	darkSecondary: "#9F9D96",
+	darkMuted: "#878580",
+	darkRule: "#343331",
+} as const;
+
+const SERIF =
+	"'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', 'Songti SC', Georgia, serif";
+const MONO =
+	"'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+const T = BLOG_TOKENS;
 
 /** Notifications are disabled when `DISABLE_EMAIL_NOTIFY` is truthy. */
 export function isNotifyDisabled(env: Env): boolean {
@@ -132,36 +159,98 @@ export function escapeMultiline(value: string): string {
 	return escapeHtml(value).replace(/\r?\n/g, "<br />");
 }
 
+/** Render plain text as paragraphs, keeping single line breaks. */
+export function renderParagraphs(value: string): string {
+	return value
+		.split(/\r?\n{2,}/)
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.map((part) => `<p style="margin:0 0 .85em">${escapeMultiline(part)}</p>`)
+		.join("");
+}
+
 export function truncate(value: string, limit: number): string {
 	const trimmed = value.trim();
 	if (trimmed.length <= limit) return trimmed;
 	return `${trimmed.slice(0, limit).trimEnd()}…`;
 }
 
-export function renderEmailLayout(opts: {
-	siteName: string;
+export interface EmailLayoutOptions {
+	/** Mono eyebrow, e.g. `SUENYIYANG.COM`. */
+	kicker: string;
 	heading: string;
-	intro: string;
-	cardHtml: string;
-	actionUrl?: string;
-	actionLabel?: string;
-	footerHtml?: string;
-}): string {
-	const action = opts.actionUrl
-		? `<p style="margin:20px 0 4px"><a href="${escapeHtml(opts.actionUrl)}" style="display:inline-block;padding:10px 18px;border-radius:999px;background:#2f6feb;color:#ffffff;text-decoration:none;font-size:14px">${escapeHtml(opts.actionLabel || "查看")}</a></p>`
+	/** Small chip next to the heading, e.g. `待审核`. */
+	badge?: string;
+	/** Mono metadata line, e.g. `NICK · 2026.11.19 09:04`. */
+	meta?: string;
+	/** Pre-escaped comment body. */
+	bodyHtml: string;
+	/** Optional quote in the reading column's blockquote style. */
+	quote?: { label: string; html: string };
+	action?: { url: string; label: string };
+	footerHtml: string;
+}
+
+export function renderEmailLayout(opts: EmailLayoutOptions): string {
+	const badge = opts.badge
+		? `<span class="em-badge" style="display:inline-block;margin-left:8px;padding:1px 6px;border:1px solid ${T.rule};border-radius:3px;font-family:${MONO};font-size:10px;font-weight:500;letter-spacing:.08em;color:${T.muted};vertical-align:3px">${escapeHtml(opts.badge)}</span>`
 		: "";
 
 	return `<!doctype html>
 <html lang="zh-CN">
-<body style="margin:0;padding:24px 12px;background:#f5f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;color:#1f2328">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px">
-    <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8b949e">${escapeHtml(opts.siteName)}</p>
-    <h1 style="margin:0 0 12px;font-size:19px;line-height:1.4">${escapeHtml(opts.heading)}</h1>
-    <p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#57606a">${escapeHtml(opts.intro)}</p>
-    <div style="border-left:3px solid #d0d7de;background:#f6f8fa;border-radius:6px;padding:12px 14px;font-size:14px;line-height:1.75;color:#24292f">${opts.cardHtml}</div>
-    ${action}
-    <hr style="border:none;border-top:1px solid #eaeef2;margin:20px 0 12px" />
-    <p style="margin:0;font-size:12px;line-height:1.7;color:#8b949e">${opts.footerHtml || ""}</p>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<meta name="supported-color-schemes" content="light dark" />
+<title>${escapeHtml(opts.heading)}</title>
+<style>
+  @media (prefers-color-scheme: dark) {
+    .em-surface { background: ${T.darkPaper} !important; }
+    .em-ink { color: ${T.darkInk} !important; }
+    .em-body { color: ${T.darkBody} !important; }
+    .em-quote { color: ${T.darkSecondary} !important; border-color: ${T.darkRule} !important; }
+    .em-muted { color: ${T.darkMuted} !important; }
+    .em-rule { border-color: ${T.darkRule} !important; }
+    .em-badge { color: ${T.darkMuted} !important; border-color: ${T.darkRule} !important; }
+  }
+</style>
+</head>
+<body class="em-surface" style="margin:0;padding:0;background:${T.paper}">
+  <div class="em-surface" style="background:${T.paper};padding:44px 22px 38px">
+    <div style="max-width:540px;margin:0 auto;font-family:${SERIF}">
+      <div class="em-muted" style="font-family:${MONO};font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:${T.muted}">${escapeHtml(opts.kicker)}</div>
+
+      <h1 class="em-ink" style="margin:14px 0 0;font-family:${SERIF};font-size:22px;line-height:1.45;font-weight:700;color:${T.ink}">${escapeHtml(opts.heading)}${badge}</h1>
+      ${
+				opts.meta
+					? `<div class="em-muted" style="margin:10px 0 0;font-family:${MONO};font-size:11px;font-weight:500;letter-spacing:.04em;color:${T.muted}">${escapeHtml(opts.meta)}</div>`
+					: ""
+			}
+
+      <div class="em-rule" style="margin:24px 0 0;border-top:1px solid ${T.rule};font-size:0;line-height:0">&nbsp;</div>
+
+      <div class="em-body" style="margin:24px 0 0;font-family:${SERIF};font-size:17px;line-height:1.9;color:${T.body}">${opts.bodyHtml}</div>
+
+      ${
+				opts.quote
+					? `<div class="em-quote" style="margin:24px 0 0;padding-left:14px;border-left:1px solid ${T.rule};font-family:${SERIF};font-size:16px;line-height:1.8;color:${T.secondary}">
+        <div class="em-muted" style="margin:0 0 6px;font-family:${MONO};font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:${T.muted}">${escapeHtml(opts.quote.label)}</div>
+        ${opts.quote.html}
+      </div>`
+					: ""
+			}
+
+      ${
+				opts.action
+					? `<div style="margin:28px 0 0"><a href="${escapeHtml(opts.action.url)}" style="font-family:${MONO};font-size:12px;font-weight:500;letter-spacing:.05em;color:${T.accent};text-decoration:none;border-bottom:1px solid rgba(2,122,255,.35)">${escapeHtml(opts.action.label)}</a></div>`
+					: ""
+			}
+
+      <div class="em-rule" style="margin:32px 0 0;border-top:1px solid ${T.rule};font-size:0;line-height:0">&nbsp;</div>
+
+      <div class="em-muted" style="margin:16px 0 0;font-family:${MONO};font-size:10px;font-weight:400;line-height:1.9;letter-spacing:.04em;color:${T.muted}">${opts.footerHtml}</div>
+    </div>
   </div>
 </body>
 </html>`;

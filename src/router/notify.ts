@@ -3,6 +3,9 @@
  *
  * GET /api/notify/unsubscribe?token=… — one-click opt-out of reply mails.
  * The token is an HMAC-signed email address, so no login is required.
+ *
+ * The page reuses the blog's paper/ink reading surface (Flexoki tokens from
+ * https://suenyiyang.com/src/index.css) and stays a single quiet paragraph.
  */
 import { Hono } from "hono";
 import type { Env } from "../env.js";
@@ -68,34 +71,77 @@ function unsubscribePage(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
   <meta name="robots" content="noindex" />
   <title>${escapeHtml(heading)} · ${escapeHtml(siteName)}</title>
   <style>
-    :root { color-scheme: light dark; }
-    body {
-      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-      padding: 24px; background: #f5f6f8; color: #1f2328;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    :root {
+      --paper: #FFFCF0;
+      --ink: #100F0F;
+      --body: #343331;
+      --muted: #6F6E69;
+      --rule: #E6E4D9;
+      color-scheme: light dark;
     }
-    main {
-      width: min(420px, 100%); background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
-      padding: 28px 26px; box-shadow: 0 12px 32px rgba(15, 23, 42, .06);
-    }
-    small { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8b949e; margin-bottom: 6px; }
-    h1 { margin: 0 0 10px; font-size: 20px; line-height: 1.4; }
-    p { margin: 0; font-size: 14px; line-height: 1.75; color: #57606a; }
     @media (prefers-color-scheme: dark) {
-      body { background: #0d1117; color: #e6edf3; }
-      main { background: #161b22; border-color: #30363d; box-shadow: none; }
-      p { color: #9198a1; }
+      :root {
+        --paper: #100F0F;
+        --ink: #E6E4D9;
+        --body: #CECDC3;
+        --muted: #878580;
+        --rule: #343331;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 22px;
+      background: var(--paper);
+      color: var(--body);
+      font-family: "LXGW WenKai", "Kaiti SC", "STKaiti", "KaiTi", "Songti SC", Georgia, serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { width: min(34rem, 100%); }
+    .kicker {
+      margin: 0;
+      font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    h1 {
+      margin: 14px 0 0;
+      font-size: 22px;
+      line-height: 1.45;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .rule {
+      margin: 24px 0 0;
+      border-top: 1px solid var(--rule);
+      font-size: 0;
+      line-height: 0;
+    }
+    p.message {
+      margin: 24px 0 0;
+      font-size: 17px;
+      line-height: 1.9;
+      color: var(--body);
     }
   </style>
 </head>
 <body>
   <main>
-    <small>${escapeHtml(siteName)}</small>
+    <p class="kicker">${escapeHtml(siteName)}</p>
     <h1>${escapeHtml(heading)}</h1>
-    <p>${escapeHtml(message)}</p>
+    <div class="rule">&nbsp;</div>
+    <p class="message">${escapeHtml(message)}</p>
   </main>
 </body>
 </html>`;

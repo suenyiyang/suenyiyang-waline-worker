@@ -11,6 +11,9 @@
  * Reply/approval mail carries a signed unsubscribe link backed by
  * `wl_NotifyMute`. Delivery is best-effort: failures are logged and never
  * change the API response.
+ *
+ * The three builders below are pure so the templates can be previewed and
+ * tested without a database.
  */
 import type { Env } from "../env.js";
 import {
@@ -18,7 +21,9 @@ import {
 	escapeMultiline,
 	getMailTransport,
 	isNotifyDisabled,
+	type MailMessage,
 	renderEmailLayout,
+	renderParagraphs,
 	resolveSender,
 	sendMail,
 	supportsAnyRecipient,
@@ -47,6 +52,7 @@ interface CommentRow {
 	orig: string | null;
 	pid: number | null;
 	status: string | null;
+	insertedAt: string | null;
 	user_id: number | null;
 }
 
@@ -56,6 +62,172 @@ export interface NotifyOptions {
 	/** Request URL, used to build absolute unsubscribe links. */
 	requestUrl?: string;
 }
+
+// ─── Templates ───────────────────────────────────────────────────────────────
+
+export interface TemplateContext {
+	siteName: string;
+	siteUrl: string;
+	/** Page path of the comment, e.g. `/posts/agent-stack`. */
+	path: string;
+	/** Absolute link to the comment anchor, when known. */
+	commentUrl?: string;
+	/** `2026.11.19 09:04` in the site's timezone. */
+	date: string;
+	/** Origin of the Worker that serves the admin panel, e.g. the request origin. */
+	adminUrl?: string;
+}
+
+export interface RenderedEmail {
+	subject: string;
+	html: string;
+	text: string;
+}
+
+function kickerOf(ctx: TemplateContext): string {
+	try {
+		return new URL(ctx.siteUrl).hostname.replace(/^www\./, "");
+	} catch {
+		return ctx.siteName;
+	}
+}
+
+function footer(text: string): string {
+	return escapeHtml(text);
+}
+
+export function buildAdminEmail(
+	ctx: TemplateContext,
+	input: { nick: string; excerpt: string; pending: boolean },
+): RenderedEmail {
+	const heading = input.pending ? "新评论待审核" : "收到新评论";
+	const meta = [input.nick, ctx.path, ctx.date].filter(Boolean).join(" · ");
+
+	return {
+		subject: input.pending
+			? `[${ctx.siteName}] 待审核 · ${input.nick}`
+			: `[${ctx.siteName}] 新评论 · ${input.nick}`,
+		html: renderEmailLayout({
+			kicker: kickerOf(ctx),
+			heading,
+			badge: input.pending ? "等待审核" : undefined,
+			meta,
+			bodyHtml: renderParagraphs(input.excerpt),
+			action: ctx.commentUrl
+				? { url: ctx.commentUrl, label: "查看评论 →" }
+				: undefined,
+			footerHtml: footer(
+				input.pending
+					? `回复此邮件不会通知留言者。审核入口：${ctx.adminUrl || ctx.siteUrl}/ui`
+					: `你收到这封邮件是因为你是 ${ctx.siteName} 的管理员。`,
+			),
+		}),
+		text: [
+			heading,
+			meta,
+			"",
+			input.excerpt,
+			"",
+			...(ctx.commentUrl ? [`查看：${ctx.commentUrl}`, ""] : []),
+			`— ${ctx.siteName}`,
+		].join("\n"),
+	};
+}
+
+export function buildReplyEmail(
+	ctx: TemplateContext,
+	input: {
+		nick: string;
+		excerpt: string;
+		parentExcerpt: string;
+		unsubscribeUrl?: string | null;
+	},
+): RenderedEmail {
+	const heading = `${input.nick} 回复了你的评论`;
+	const meta = [ctx.path, ctx.date].filter(Boolean).join(" · ");
+
+	return {
+		subject: `[${ctx.siteName}] ${input.nick} 回复了你的评论`,
+		html: renderEmailLayout({
+			kicker: kickerOf(ctx),
+			heading,
+			meta,
+			bodyHtml: renderParagraphs(input.excerpt),
+			quote: input.parentExcerpt
+				? { label: "你之前的评论", html: renderParagraphs(input.parentExcerpt) }
+				: undefined,
+			action: ctx.commentUrl
+				? { url: ctx.commentUrl, label: "查看并回复 →" }
+				: undefined,
+			footerHtml: unsubscribeFooter(
+				"有人回复了你在此前留下的评论。",
+				input.unsubscribeUrl,
+			),
+		}),
+		text: [
+			heading,
+			meta,
+			"",
+			input.excerpt,
+			"",
+			...(input.parentExcerpt
+				? [`你之前的评论：`, input.parentExcerpt, ""]
+				: []),
+			...(ctx.commentUrl ? [`查看：${ctx.commentUrl}`, ""] : []),
+			...(input.unsubscribeUrl
+				? [`不想再收到回复提醒？${input.unsubscribeUrl}`, ""]
+				: []),
+			`— ${ctx.siteName}`,
+		].join("\n"),
+	};
+}
+
+export function buildApprovedEmail(
+	ctx: TemplateContext,
+	input: { excerpt: string; unsubscribeUrl?: string | null },
+): RenderedEmail {
+	const heading = "你的评论已发布";
+	const meta = [ctx.path, ctx.date].filter(Boolean).join(" · ");
+
+	return {
+		subject: `[${ctx.siteName}] 你的评论已发布`,
+		html: renderEmailLayout({
+			kicker: kickerOf(ctx),
+			heading,
+			meta,
+			bodyHtml: renderParagraphs(input.excerpt),
+			action: ctx.commentUrl
+				? { url: ctx.commentUrl, label: "查看评论 →" }
+				: undefined,
+			footerHtml: unsubscribeFooter(
+				"有人回复了你在此前留下的评论。",
+				input.unsubscribeUrl,
+			),
+		}),
+		text: [
+			heading,
+			meta,
+			"",
+			input.excerpt,
+			"",
+			...(ctx.commentUrl ? [`查看：${ctx.commentUrl}`, ""] : []),
+			...(input.unsubscribeUrl
+				? [`不想再收到这类提醒？${input.unsubscribeUrl}`, ""]
+				: []),
+			`— ${ctx.siteName}`,
+		].join("\n"),
+	};
+}
+
+function unsubscribeFooter(
+	reason: string,
+	unsubscribeUrl?: string | null,
+): string {
+	if (!unsubscribeUrl) return footer(reason);
+	return `${footer(reason)}<br />不想再收到这类提醒？<a href="${escapeHtml(unsubscribeUrl)}" style="color:inherit;text-decoration:underline">退订</a>`;
+}
+
+// ─── Dispatch ────────────────────────────────────────────────────────────────
 
 /**
  * Send every notification a comment is entitled to. Safe to call more than
@@ -82,7 +254,7 @@ export async function dispatchCommentNotifications(
 	try {
 		const row = await db
 			.prepare(
-				`SELECT id, nick, mail, url, comment, orig, pid, status, user_id
+				`SELECT id, nick, mail, url, comment, orig, pid, status, insertedAt, user_id
          FROM wl_Comment WHERE id = ?`,
 			)
 			.bind(commentId)
@@ -100,8 +272,15 @@ export async function dispatchCommentNotifications(
 			baseUrl: originOf(options.requestUrl),
 			authorMail: (row.mail || "").trim(),
 			nick: (row.nick || "").trim() || "匿名访客",
+			template: {
+				siteName: env.SITE_NAME?.trim() || "Waline",
+				siteUrl: (env.SITE_URL || "").replace(/\/+$/, ""),
+				path: row.url || "/",
+				date: formatDate(row.insertedAt),
+				adminUrl: originOf(options.requestUrl),
+			},
 		};
-		ctx.commentUrl = commentLink(ctx, row);
+		ctx.template.commentUrl = commentLink(ctx, row);
 		ctx.excerpt = excerptOf(row);
 
 		await notifyAdmins(ctx);
@@ -128,7 +307,7 @@ interface NotifyContext {
 	baseUrl: string;
 	authorMail: string;
 	nick: string;
-	commentUrl?: string;
+	template: TemplateContext;
 	excerpt?: string;
 }
 
@@ -145,30 +324,12 @@ async function notifyAdmins(ctx: NotifyContext): Promise<void> {
 		if (!(await canNotify(ctx.db, to))) continue;
 		if (!(await claim(ctx.db, ctx.comment.id, "admin", to))) continue;
 
-		const heading = pending ? "有新的评论等待审核" : "收到新的评论";
-		const intro = pending
-			? `${ctx.nick} 在 ${pagePath(ctx)} 留言了，通过审核后才会公开显示。`
-			: `${ctx.nick} 在 ${pagePath(ctx)} 留言了。`;
-		const subject = pending
-			? `[${ctx.siteName}] 待审核 · ${ctx.nick} 在 ${pagePath(ctx)} 留言`
-			: `[${ctx.siteName}] 新评论 · ${ctx.nick}`;
-
-		const sent = await sendMail(ctx.env, {
-			to,
-			subject,
-			html: renderEmailLayout({
-				siteName: ctx.siteName,
-				heading,
-				intro,
-				cardHtml: `<strong>${escapeHtml(ctx.nick)}</strong><br />${escapeMultiline(ctx.excerpt || "")}`,
-				actionUrl: ctx.commentUrl,
-				actionLabel: "查看评论",
-				footerHtml: pending
-					? `回复此邮件不会通知留言者。请在管理面板中审核：${escapeHtml(ctx.baseUrl || ctx.siteUrl)}/ui`
-					: "你收到这封邮件是因为你是本站管理员。",
-			}),
-			text: buildText(ctx, heading, intro, ctx.commentUrl),
+		const email = buildAdminEmail(ctx.template, {
+			nick: ctx.nick,
+			excerpt: ctx.excerpt || "",
+			pending,
 		});
+		const sent = await sendMail(ctx.env, { to, ...email });
 		if (!sent) await release(ctx.db, ctx.comment.id, "admin", to);
 	}
 }
@@ -184,7 +345,7 @@ async function notifyReply(ctx: NotifyContext): Promise<void> {
 
 	const parent = await ctx.db
 		.prepare(
-			`SELECT id, nick, mail, url, comment, orig, pid, status, user_id
+			`SELECT id, nick, mail, url, comment, orig, pid, status, insertedAt, user_id
        FROM wl_Comment WHERE id = ?`,
 		)
 		.bind(pid)
@@ -203,30 +364,18 @@ async function notifyReply(ctx: NotifyContext): Promise<void> {
 	if (to.toLowerCase() === ctx.authorMail.toLowerCase()) return;
 	if (!(await canNotify(ctx.db, to))) return;
 
-	const parentExcerpt = excerptOf(parent);
-
 	const unsubscribeUrl = await buildUnsubscribeUrl(ctx, to);
 	if (!(await claim(ctx.db, ctx.comment.id, "reply", to))) return;
 
-	const heading = `${ctx.nick} 回复了你的评论`;
-	const intro = `${ctx.nick} 在 ${pagePath(ctx)} 回复了你。`;
+	const email = buildReplyEmail(ctx.template, {
+		nick: ctx.nick,
+		excerpt: ctx.excerpt || "",
+		parentExcerpt: excerptOf(parent),
+		unsubscribeUrl,
+	});
 	const sent = await sendMail(ctx.env, {
 		to,
-		subject: `[${ctx.siteName}] ${ctx.nick} 回复了你的评论`,
-		html: renderEmailLayout({
-			siteName: ctx.siteName,
-			heading,
-			intro,
-			cardHtml: `<strong>${escapeHtml(ctx.nick)}</strong><br />${escapeMultiline(ctx.excerpt || "")}${
-				parentExcerpt
-					? `<div style="margin-top:12px;padding-top:12px;border-top:1px dashed #d0d7de;color:#57606a"><em>你的评论：</em><br />${escapeMultiline(parentExcerpt)}</div>`
-					: ""
-			}`,
-			actionUrl: ctx.commentUrl,
-			actionLabel: "查看并回复",
-			footerHtml: unsubscribeFooter(unsubscribeUrl),
-		}),
-		text: buildText(ctx, heading, intro, ctx.commentUrl, unsubscribeUrl),
+		...email,
 		unsubscribeUrl: unsubscribeUrl || undefined,
 	});
 	if (!sent) await release(ctx.db, ctx.comment.id, "reply", to);
@@ -244,21 +393,13 @@ async function notifyAuthorApproved(ctx: NotifyContext): Promise<void> {
 	const unsubscribeUrl = await buildUnsubscribeUrl(ctx, to);
 	if (!(await claim(ctx.db, ctx.comment.id, "approved", to))) return;
 
-	const heading = "你的评论已发布";
-	const intro = `你在 ${pagePath(ctx)} 的评论已通过审核，现在可以公开看到了。`;
+	const email = buildApprovedEmail(ctx.template, {
+		excerpt: ctx.excerpt || "",
+		unsubscribeUrl,
+	});
 	const sent = await sendMail(ctx.env, {
 		to,
-		subject: `[${ctx.siteName}] 你的评论已发布`,
-		html: renderEmailLayout({
-			siteName: ctx.siteName,
-			heading,
-			intro,
-			cardHtml: escapeMultiline(ctx.excerpt || ""),
-			actionUrl: ctx.commentUrl,
-			actionLabel: "查看评论",
-			footerHtml: unsubscribeFooter(unsubscribeUrl),
-		}),
-		text: buildText(ctx, heading, intro, ctx.commentUrl, unsubscribeUrl),
+		...email,
 		unsubscribeUrl: unsubscribeUrl || undefined,
 	});
 	if (!sent) await release(ctx.db, ctx.comment.id, "approved", to);
@@ -388,8 +529,28 @@ async function buildUnsubscribeUrl(
 
 // ─── Small helpers ──────────────────────────────────────────────────────────
 
-function pagePath(ctx: NotifyContext): string {
-	return ctx.comment.url || ctx.siteUrl || "本站";
+/** Blog-style date stamp: `2026.11.19 09:04` in Asia/Shanghai. */
+export function formatDate(value: string | null | undefined): string {
+	const raw = String(value || "").trim();
+	if (!raw) return "";
+	const iso =
+		/\dT/.test(raw) || raw.endsWith("Z") ? raw : `${raw.replace(" ", "T")}Z`;
+	const date = new Date(iso);
+	if (Number.isNaN(date.getTime())) return "";
+
+	const parts = new Intl.DateTimeFormat("zh-CN", {
+		timeZone: "Asia/Shanghai",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+		hour12: false,
+	}).formatToParts(date);
+
+	const pick = (type: string) =>
+		parts.find((part) => part.type === type)?.value || "";
+	return `${pick("year")}.${pick("month")}.${pick("day")} ${pick("hour")}:${pick("minute")}`;
 }
 
 function excerptOf(row: CommentRow): string {
@@ -416,27 +577,6 @@ function originOf(requestUrl?: string): string {
 	} catch {
 		return "";
 	}
-}
-
-function buildText(
-	ctx: NotifyContext,
-	heading: string,
-	intro: string,
-	commentUrl?: string,
-	unsubscribeUrl?: string | null,
-): string {
-	const lines = [heading, "", intro, ""];
-	if (ctx.excerpt) lines.push(ctx.excerpt, "");
-	if (commentUrl) lines.push(`查看：${commentUrl}`, "");
-	if (unsubscribeUrl) lines.push(`不想再收到回复提醒？${unsubscribeUrl}`, "");
-	lines.push(`— ${ctx.siteName}`);
-	return lines.join("\n");
-}
-
-function unsubscribeFooter(unsubscribeUrl: string | null): string {
-	if (!unsubscribeUrl)
-		return "你收到这封邮件是因为有人回复了你在此前留下的评论。";
-	return `不想再收到这类提醒？<a href="${escapeHtml(unsubscribeUrl)}" style="color:#57606a">取消订阅</a>`;
 }
 
 function dedupe(values: string[]): string[] {

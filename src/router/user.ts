@@ -298,7 +298,11 @@ async function updateUser(c: any, id: string, body: any) {
 		.bind(targetId)
 		.first();
 
-	return c.json({ errno: 0, errmsg: "", data: await formatUser(updated, c.env) });
+	return c.json({
+		errno: 0,
+		errmsg: "",
+		data: await formatUser(updated, c.env),
+	});
 }
 
 async function formatUser(row: any, env: Env) {

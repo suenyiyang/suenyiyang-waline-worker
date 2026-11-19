@@ -27,3 +27,11 @@
 - 提交 82fd505 推送 `main`，GitHub 集成自动部署完成。
 - 线上验证：`GET /api/notify/unsubscribe` 返回 400（路由已上线）；向 `/notify-selftest` 投稿与回复后，`wl_Notify` 出现 `admin`（评论 18、20）与 `reply`（评论 20）占位记录，说明 Resend 均返回成功；管理员本人评论不产生 `admin` 通知（符合预期）。
 - 清理：删除 3 条测试评论、其地区与通知记录，评论总数回到 11、`wl_Notify` 为 0。
+
+## 模板改版（2026-11-19）
+
+- 参照博客源码 `suenyiyang/suenyiyang.com` 的 `src/index.css` 设计令牌重做通知邮件：paper `#FFFCF0` / ink `#100F0F` / hairline `#E6E4D9` / accent `#027AFF`，深色模式沿用 `#100F0F`、`#CECDC3`、`#343331`。
+- 排版对齐博客阅读栏：LXGW WenKai 正文（17px/1.9）、IBM Plex Mono 眉标（11px、700、0.16em 大写）与元信息（11px）、1px hairline 规则、引用块用 1px 左边线（无底色）、单一蓝色文字链接，取消卡片/圆角/阴影。
+- `buildAdminEmail` / `buildReplyEmail` / `buildApprovedEmail` 抽成纯函数（`TemplateContext` + `formatDate` 以 Asia/Shanghai 输出 `2026.11.19 09:04`），便于单元测试与本地预览。
+- 正文按空行拆段渲染（`renderParagraphs`），退订页同步改用同一套令牌与字体。
+- 预览与核对：用 vitest 输出 base64 HTML → 截图检查（light/dark 各一张）；新增 `tests/unit/utils/email-templates.test.ts`（8 例）。全套 249 用例通过。

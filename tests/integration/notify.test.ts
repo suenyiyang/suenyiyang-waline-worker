@@ -106,7 +106,7 @@ describe("dispatchCommentNotifications — replies", () => {
 		const replyMail = sent.find((mail) => mail.to[0] === "parent@example.com");
 		expect(replyMail?.subject).toContain("Replier 回复了你的评论");
 		expect(replyMail?.html).toContain(`https://blog.test/post#${reply.id}`);
-		expect(replyMail?.html).toContain("你的评论");
+		expect(replyMail?.html).toContain("你之前的评论");
 		expect(replyMail?.headers?.["List-Unsubscribe"]).toContain(
 			"https://waline.test/api/notify/unsubscribe?token=",
 		);
@@ -241,7 +241,7 @@ describe("dispatchCommentNotifications — moderation", () => {
 			(mail) => mail.to[0] === "pending@example.com",
 		);
 		expect(authorMail?.subject).toContain("你的评论已发布");
-		expect(authorMail?.html).toContain("取消订阅");
+		expect(authorMail?.html).toContain("退订");
 	});
 
 	it("never announces spam", async () => {

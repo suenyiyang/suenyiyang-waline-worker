@@ -179,22 +179,38 @@ describe("rendering helpers", () => {
 		expect(truncate("abcdefghij", 5)).toBe("abcde…");
 	});
 
-	it("escapes every interpolated value in the layout", () => {
+	it("escapes interpolated values but keeps trusted body HTML", () => {
 		const html = renderEmailLayout({
-			siteName: "<site>",
+			kicker: "<site>",
 			heading: "<h1>",
-			intro: `"intro"`,
-			cardHtml: "<strong>ok</strong>",
-			actionUrl: "https://blog.test/?a=1&b=2",
-			actionLabel: "查看",
+			meta: `"meta"`,
+			bodyHtml: "<strong>ok</strong>",
+			badge: "<tag>",
+			action: { url: "https://blog.test/?a=1&b=2", label: "查看" },
 			footerHtml: "<b>footer</b>",
 		});
 
 		expect(html).toContain("&lt;site&gt;");
 		expect(html).toContain("&lt;h1&gt;");
-		expect(html).toContain("&quot;intro&quot;");
+		expect(html).toContain("&quot;meta&quot;");
+		expect(html).toContain("&lt;tag&gt;");
 		expect(html).toContain("https://blog.test/?a=1&amp;b=2");
 		// Trusted layout fragments are injected as HTML.
 		expect(html).toContain("<strong>ok</strong>");
+	});
+
+	it("uses the blog paper/ink tokens and a dark-mode override", () => {
+		const html = renderEmailLayout({
+			kicker: "suenyiyang.com",
+			heading: "收到新评论",
+			bodyHtml: "hi",
+			footerHtml: "bye",
+		});
+
+		expect(html).toContain("#FFFCF0");
+		expect(html).toContain("#100F0F");
+		expect(html).toContain("#E6E4D9");
+		expect(html).toContain("prefers-color-scheme: dark");
+		expect(html).toContain("LXGW WenKai");
 	});
 });
